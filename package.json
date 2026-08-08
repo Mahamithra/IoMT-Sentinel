@@ -1,4 +1,15 @@
 {
+  "name": "iomt-sentinel",
+  "version": "2.1.0",
+  "description": "IoMT Sentinel — 10-Layer Zero-Trust Healthcare Security Gateway",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
     "sqlite": "^5.1.1",
     "sqlite3": "^6.0.1"
