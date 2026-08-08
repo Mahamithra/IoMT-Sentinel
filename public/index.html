@@ -1,0 +1,1909 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>IoMT Sentinel — 10‑Layer Security</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+/* ── Design tokens ── */
+:root {
+  --navy:    #0B2545;
+  --navy2:   #12305e;
+  --teal:    #0E7C7B;
+  --teal2:   #14a8a7;
+  --alert:   #D7263D;
+  --amber:   #E8A020;
+  --green:   #10B981;
+  --phosphor:#39FF14;
+  --off-white:#F0F4FF;
+  --muted:   #8FA3BF;
+  --surface: #0D1F3C;
+  --card:    #162844;
+  --card2:   #1c3257;
+  --border:  #1e3a5f;
+  --text:    #E8EDF5;
+  --mono: 'IBM Plex Mono', monospace;
+  --serif: 'Libre Baskerville', serif;
+  --sans: 'Inter', sans-serif;
+}
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{
+  background:var(--navy);
+  color:var(--text);
+  font-family:var(--sans);
+  font-size:14px;
+  line-height:1.6;
+  min-height:100vh;
+}
+
+::-webkit-scrollbar{width:6px;height:6px;}
+::-webkit-scrollbar-track{background:var(--navy);}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+
+#topbar{
+  position:sticky;top:0;z-index:100;
+  background:rgba(11,37,69,.96);
+  backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:16px;
+  padding:0 24px;height:56px;
+}
+.logo{
+  font-family:var(--serif);
+  font-size:18px;font-weight:700;
+  color:var(--off-white);
+  letter-spacing:-.3px;
+  white-space:nowrap;
+}
+.logo span{color:var(--teal2);}
+#nav{display:flex;gap:4px;flex:1;flex-wrap:wrap;}
+.nav-btn{
+  background:none;border:none;
+  color:var(--muted);
+  font-family:var(--sans);font-size:13px;font-weight:500;
+  padding:6px 14px;border-radius:6px;
+  cursor:pointer;transition:all .15s;white-space:nowrap;
+}
+.nav-btn:hover{color:var(--text);background:var(--card);}
+.nav-btn.active{color:var(--teal2);background:var(--card);border:1px solid var(--border);}
+#backend-pill{
+  font-family:var(--mono);font-size:11px;
+  padding:4px 10px;border-radius:20px;
+  border:1px solid;white-space:nowrap;flex-shrink:0;
+  transition:all .3s;
+}
+#backend-pill.connected{
+  color:var(--phosphor);border-color:var(--phosphor);
+  background:rgba(57,255,20,.07);
+  text-shadow:0 0 8px var(--phosphor);
+}
+#backend-pill.disconnected{
+  color:var(--muted);border-color:var(--border);
+}
+#status-pill{
+  font-family:var(--mono);font-size:11px;
+  padding:4px 12px;border-radius:20px;
+  border:1px solid;white-space:nowrap;flex-shrink:0;
+  transition:all .4s;
+}
+#status-pill.nominal{color:var(--green);border-color:var(--green);background:rgba(16,185,129,.08);}
+#status-pill.warning{color:var(--amber);border-color:var(--amber);background:rgba(232,160,32,.08);animation:pulse 1s ease infinite;}
+#status-pill.critical{color:var(--alert);border-color:var(--alert);background:rgba(215,38,61,.1);animation:pulse .6s ease infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.5;}}
+
+.view{display:none;animation:fadein .2s ease;}
+.view.active{display:block;}
+@keyframes fadein{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:none;}}
+
+.page-wrap{max-width:1200px;margin:0 auto;padding:32px 24px;}
+.section-title{
+  font-family:var(--serif);
+  font-size:22px;font-weight:700;
+  color:var(--off-white);margin-bottom:6px;
+}
+.section-sub{color:var(--muted);font-size:13px;margin-bottom:28px;}
+
+.card{
+  background:var(--card);border:1px solid var(--border);
+  border-radius:12px;padding:20px;
+}
+.card-title{font-family:var(--mono);font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--teal2);margin-bottom:12px;}
+
+.console-wrap{max-width:1200px;margin:0 auto;padding:24px;}
+.incident-banner{
+  background:linear-gradient(90deg,rgba(215,38,61,.15),transparent);
+  border:1px solid var(--alert);border-radius:10px;
+  padding:12px 18px;margin-bottom:20px;
+  display:flex;align-items:center;gap:12px;
+  animation:fadein .3s ease;
+}
+.incident-banner .ib-icon{font-size:18px;}
+.incident-banner .ib-text strong{color:var(--alert);}
+.incident-banner .ib-text{font-size:13px;}
+
+.posture-card{
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:20px;
+  margin-bottom:24px;
+  display:flex;
+  align-items:center;
+  gap:24px;
+  flex-wrap:wrap;
+}
+.posture-score{
+  display:flex;
+  align-items:center;
+  gap:16px;
+}
+.posture-circle{
+  width:72px;
+  height:72px;
+  border-radius:50%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-family:var(--mono);
+  font-size:28px;
+  font-weight:700;
+  border:4px solid var(--green);
+  color:var(--green);
+}
+.posture-circle.critical{border-color:var(--alert);color:var(--alert);}
+.posture-circle.warning{border-color:var(--amber);color:var(--amber);}
+.posture-label{font-size:13px;color:var(--muted);}
+.posture-label strong{color:var(--off-white);}
+.posture-breakdown{
+  display:flex;
+  gap:16px;
+  flex-wrap:wrap;
+  font-family:var(--mono);
+  font-size:11px;
+  color:var(--muted);
+}
+.posture-breakdown span{display:flex;align-items:center;gap:4px;}
+.posture-breakdown .dot{display:inline-block;width:8px;height:8px;border-radius:50%;}
+.dot.green{background:var(--green);}
+.dot.amber{background:var(--amber);}
+.dot.red{background:var(--alert);}
+
+.layers-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(250px,1fr));
+  gap:12px;
+  margin-bottom:20px;
+}
+
+.layer-card{
+  background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;
+  transition:border-color .3s,box-shadow .3s;
+}
+.layer-card.flagged{border-color:var(--alert);box-shadow:0 0 20px rgba(215,38,61,.15);}
+.layer-card.warning{border-color:var(--amber);box-shadow:0 0 12px rgba(232,160,32,.1);}
+.layer-card.ok{border-color:var(--green);}
+.layer-card.highlight{box-shadow:0 0 20px rgba(57,255,20,.15);}
+
+.layer-header{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.layer-badge{
+  width:26px;height:26px;border-radius:6px;
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:9px;font-weight:700;
+  background:var(--card2);border:1px solid var(--border);
+  flex-shrink:0;
+}
+.layer-badge.l1{color:var(--teal2);border-color:var(--teal);}
+.layer-badge.l2{color:#7eb0ff;border-color:#2a5a9f;}
+.layer-badge.l3{color:#ff8080;border-color:var(--alert);}
+.layer-badge.l4{color:#f5a623;border-color:var(--amber);}
+.layer-badge.l5{color:var(--phosphor);border-color:var(--phosphor);}
+.layer-badge.l6{color:#ff6b9d;border-color:#ff6b9d;}
+.layer-badge.l7{color:#b388ff;border-color:#b388ff;}
+.layer-badge.l8{color:#4dd0e1;border-color:#4dd0e1;}
+.layer-badge.l9{color:#ffb74d;border-color:#ffb74d;}
+.layer-badge.l10{color:#ef5350;border-color:#ef5350;}
+.layer-name{font-weight:600;font-size:12px;color:var(--off-white);}
+.layer-sub{font-size:9px;color:var(--muted);}
+.layer-status{
+  margin-left:auto;font-family:var(--mono);font-size:8px;
+  padding:2px 7px;border-radius:4px;font-weight:600;
+}
+.layer-status.nominal{background:rgba(16,185,129,.12);color:var(--green);}
+.layer-status.warning{background:rgba(232,160,32,.12);color:var(--amber);}
+.layer-status.flagged{background:rgba(215,38,61,.12);color:var(--alert);}
+.layer-status.offline{background:rgba(143,163,191,.1);color:var(--muted);}
+
+.metric-row{display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid rgba(30,58,95,.3);}
+.metric-row:last-child{border-bottom:none;}
+.metric-label{font-family:var(--mono);font-size:9px;color:var(--muted);}
+.metric-val{font-family:var(--mono);font-size:10px;font-weight:600;}
+.metric-val.ok{color:var(--green);}
+.metric-val.warn{color:var(--amber);}
+.metric-val.bad{color:var(--alert);}
+.metric-val.offline{color:var(--muted);}
+
+.type-area{
+  background:var(--surface);border:1px solid var(--border);border-radius:6px;
+  padding:6px 10px;margin:8px 0;width:100%;
+  color:var(--text);font-family:var(--mono);font-size:12px;
+  resize:none;height:40px;outline:none;
+  transition:border-color .2s;
+}
+.type-area:focus{border-color:var(--teal);}
+.type-area.flagged{border-color:var(--alert);}
+
+.trust-bar-wrap{margin:6px 0;}
+.trust-bar-bg{height:4px;background:var(--surface);border-radius:2px;overflow:hidden;}
+.trust-bar-fill{height:100%;border-radius:2px;transition:width .5s ease,background .5s;}
+.trust-label{display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:2px;}
+
+.ecg-wrap{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:6px;margin:6px 0;overflow:hidden;height:50px;}
+#ecg-canvas{width:100%;height:36px;}
+
+.net-diagram{display:flex;gap:4px;overflow-x:auto;padding:4px 0;align-items:center;flex-wrap:nowrap;}
+.net-node{
+  flex-shrink:0;background:var(--card2);border:1px solid var(--border);
+  border-radius:6px;padding:4px 6px;text-align:center;min-width:60px;
+  font-family:var(--mono);font-size:8px;transition:all .3s;
+}
+.net-node.active{border-color:var(--teal);color:var(--teal2);}
+.net-node.compromised{border-color:var(--alert);background:rgba(215,38,61,.1);color:var(--alert);animation:pulse .8s ease infinite;}
+.net-node .nn-icon{font-size:14px;display:block;margin-bottom:2px;}
+.net-node .nn-label{display:block;font-size:7px;color:var(--muted);}
+.net-link{font-size:12px;color:var(--border);flex-shrink:0;}
+.net-link.blocked{color:var(--alert);}
+
+.l1-actions{display:flex;gap:4px;margin-top:6px;flex-wrap:wrap;}
+.l1-btn{
+  flex:1;background:var(--card2);border:1px solid var(--border);
+  color:var(--muted);font-family:var(--mono);font-size:9px;
+  padding:4px 8px;border-radius:4px;cursor:pointer;
+  transition:all .15s;white-space:nowrap;min-width:60px;
+}
+.l1-btn:hover{border-color:var(--teal);color:var(--teal2);}
+.l1-btn.primary{background:rgba(14,124,123,.15);border-color:var(--teal);color:var(--teal2);}
+.l1-btn.emergency{background:rgba(215,38,61,.1);border-color:var(--alert);color:var(--alert);}
+.l1-btn.emergency.active{background:rgba(215,38,61,.2);border-color:var(--alert);color:var(--alert);}
+.l1-btn.correlation{background:rgba(57,255,20,.1);border-color:var(--phosphor);color:var(--phosphor);}
+.l1-btn.correlation:hover{background:rgba(57,255,20,.2);}
+.l1-btn.danger{background:rgba(215,38,61,.1);border-color:var(--alert);color:var(--alert);}
+.l1-btn.danger:hover{background:rgba(215,38,61,.2);}
+
+.bottom-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;}
+.attack-panel{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;}
+.attack-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px;}
+.attack-btn{
+  background:var(--card2);border:1px solid var(--border);
+  color:var(--text);font-family:var(--sans);font-size:11px;font-weight:500;
+  padding:8px 10px;border-radius:6px;cursor:pointer;text-align:left;
+  transition:all .15s;line-height:1.3;
+}
+.attack-btn:hover:not(:disabled){border-color:var(--teal);color:var(--teal2);}
+.attack-btn:disabled{opacity:.5;cursor:not-allowed;}
+.attack-btn .ab-icon{font-size:14px;display:block;margin-bottom:2px;}
+.attack-btn.highlight{background:rgba(57,255,20,.1);border-color:var(--phosphor);grid-column:span 2;}
+.reset-btn{
+  width:100%;background:none;border:1px solid var(--border);
+  color:var(--muted);font-family:var(--sans);font-size:11px;
+  padding:6px;border-radius:6px;cursor:pointer;transition:all .15s;margin-top:6px;
+}
+.reset-btn:hover{border-color:var(--teal);color:var(--teal2);}
+
+.log-panel{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;}
+.log-feed{height:120px;overflow-y:auto;font-family:var(--mono);font-size:10px;line-height:1.6;}
+.log-entry{color:var(--muted);}
+.log-entry .le-time{color:var(--border);}
+.log-entry .le-ok{color:var(--green);}
+.log-entry .le-warn{color:var(--amber);}
+.log-entry .le-crit{color:var(--alert);}
+.log-entry .le-highlight{color:var(--phosphor);font-weight:600;}
+
+.inc-controls{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;}
+.ic-btn{
+  background:var(--card);border:1px solid var(--border);
+  color:var(--muted);font-family:var(--sans);font-size:13px;font-weight:500;
+  padding:8px 16px;border-radius:8px;cursor:pointer;transition:all .15s;
+}
+.ic-btn:hover{border-color:var(--teal);color:var(--teal2);}
+.ic-btn.danger{border-color:rgba(215,38,61,.3);color:var(--alert);}
+.ic-btn.danger:hover{background:rgba(215,38,61,.1);}
+.inc-stats{display:flex;gap:16px;margin-bottom:24px;flex-wrap:wrap;}
+.inc-stat{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 20px;flex:1;min-width:120px;}
+.inc-stat-val{font-family:var(--mono);font-size:22px;font-weight:700;}
+.inc-stat-lab{font-size:11px;color:var(--muted);margin-top:2px;}
+#incident-list{display:flex;flex-direction:column;gap:8px;}
+.inc-item{
+  background:var(--card);border:1px solid var(--border);border-radius:8px;
+  padding:12px 14px;display:flex;align-items:flex-start;gap:10px;
+  transition:border-color .2s;
+}
+.inc-item:hover{border-color:var(--teal);}
+.inc-sev{
+  width:6px;height:6px;border-radius:50%;flex-shrink:0;margin-top:4px;
+}
+.inc-sev.critical{background:var(--alert);box-shadow:0 0 6px var(--alert);}
+.inc-sev.high{background:var(--amber);box-shadow:0 0 6px var(--amber);}
+.inc-sev.medium{background:var(--green);}
+.inc-sev.low{background:var(--muted);}
+.inc-body{flex:1;}
+.inc-title{font-weight:600;font-size:12px;color:var(--off-white);margin-bottom:2px;}
+.inc-detail{font-size:11px;color:var(--muted);margin-bottom:4px;}
+.inc-meta{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
+.inc-id{font-family:var(--mono);font-size:9px;color:var(--border);}
+.inc-time{font-family:var(--mono);font-size:9px;color:var(--muted);}
+.inc-priority{
+  font-family:var(--mono);
+  font-size:8px;
+  font-weight:600;
+  padding:1px 6px;
+  border-radius:10px;
+}
+.inc-priority.critical{background:rgba(215,38,61,.2);color:var(--alert);}
+.inc-priority.high{background:rgba(232,160,32,.2);color:var(--amber);}
+.inc-priority.medium{background:rgba(16,185,129,.2);color:var(--green);}
+.inc-priority.low{background:rgba(143,163,191,.2);color:var(--muted);}
+.inc-recommendation{
+  margin-top:3px;
+  font-size:10px;
+  color:var(--teal2);
+  background:rgba(14,124,123,.08);
+  padding:3px 8px;
+  border-radius:4px;
+  display:inline-block;
+}
+.inc-empty{text-align:center;padding:48px;color:var(--muted);font-size:14px;}
+.inc-empty .ie-icon{font-size:36px;margin-bottom:12px;}
+
+.mfa-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.75);
+  backdrop-filter: blur(6px);
+  z-index: 1000;
+  justify-content: center;
+  align-items: center;
+}
+.mfa-overlay.active { display: flex; }
+.mfa-modal {
+  background: var(--card);
+  border: 1px solid var(--alert);
+  border-radius: 16px;
+  padding: 24px 32px;
+  max-width: 400px;
+  width: 90%;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.8);
+  animation: fadein .3s ease;
+}
+.mfa-icon { font-size: 36px; text-align: center; display: block; margin-bottom: 8px; }
+.mfa-title {
+  font-family: var(--serif);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--off-white);
+  text-align: center;
+  margin-bottom: 6px;
+}
+.mfa-sub {
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+.mfa-code-display {
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 32px;
+  letter-spacing: 8px;
+  color: var(--teal2);
+  background: var(--surface);
+  padding: 10px 0;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  margin-bottom: 12px;
+  font-weight: 700;
+}
+.mfa-input {
+  width: 100%;
+  padding: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 18px;
+  text-align: center;
+  outline: none;
+  letter-spacing: 4px;
+}
+.mfa-input:focus { border-color: var(--teal); }
+.mfa-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.mfa-btn {
+  flex: 1;
+  padding: 10px;
+  border-radius: 6px;
+  font-family: var(--sans);
+  font-weight: 600;
+  font-size: 13px;
+  border: none;
+  cursor: pointer;
+  transition: all .15s;
+  min-width: 60px;
+}
+.mfa-btn.verify { background: var(--green); color: #0B2545; }
+.mfa-btn.verify:hover { background: #0fcf8f; }
+.mfa-btn.cancel { background: transparent; border: 1px solid var(--border); color: var(--muted); }
+.mfa-btn.cancel:hover { border-color: var(--alert); color: var(--alert); }
+.mfa-btn.phone { background: rgba(14,124,123,.2); border: 1px solid var(--teal); color: var(--teal2); }
+.mfa-btn.phone:hover { background: rgba(14,124,123,.3); }
+.mfa-timer {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
+  margin-top: 10px;
+}
+.mfa-error {
+  color: var(--alert);
+  font-size: 11px;
+  text-align: center;
+  margin-top: 6px;
+  display: none;
+}
+
+@media(max-width:768px){
+  #topbar{padding:0 14px;}
+  .nav-btn{padding:4px 6px;font-size:11px;}
+  .console-wrap{padding:12px;}
+  .bottom-grid{grid-template-columns:1fr;}
+  .attack-grid{grid-template-columns:1fr;}
+  .mfa-modal { padding: 20px; }
+  .mfa-code-display { font-size: 24px; letter-spacing: 4px; }
+  .posture-card{flex-direction:column;align-items:stretch;gap:10px;}
+  .layers-grid{grid-template-columns:repeat(auto-fit,minmax(200px,1fr));}
+}
+</style>
+</head>
+<body>
+
+<header id="topbar">
+  <div class="logo">IoMT <span>Sentinel</span></div>
+  <nav id="nav">
+    <button class="nav-btn active" data-view="console">Live Console</button>
+    <button class="nav-btn" data-view="incidents">Incident Log</button>
+  </nav>
+  <div id="backend-pill" class="disconnected">⚫ Offline</div>
+  <div id="status-pill" class="nominal">● ALL SYSTEMS NOMINAL</div>
+</header>
+
+<div id="view-console" class="view active">
+<div class="console-wrap">
+
+  <div id="incident-banner" style="display:none;" class="incident-banner">
+    <span class="ib-icon">🚨</span>
+    <div class="ib-text"><strong id="ib-title">Incident detected</strong> — <span id="ib-detail"></span></div>
+  </div>
+
+  <div class="posture-card">
+    <div class="posture-score">
+      <div class="posture-circle" id="postureCircle">100</div>
+      <div>
+        <div class="posture-label"><strong>Security Posture</strong></div>
+        <div class="posture-label" style="font-size:11px;" id="postureStatus">✅ Healthy</div>
+      </div>
+    </div>
+    <div class="posture-breakdown" id="postureBreakdown">
+      <span><span class="dot green"></span> L1: <span id="pL1">100%</span></span>
+      <span><span class="dot green"></span> L2: <span id="pL2">100%</span></span>
+      <span><span class="dot green"></span> L3: <span id="pL3">100%</span></span>
+      <span><span class="dot green"></span> L4: <span id="pL4">100%</span></span>
+      <span><span class="dot green"></span> L5: <span id="pL5">100%</span></span>
+      <span><span class="dot green"></span> L6: <span id="pL6">100%</span></span>
+      <span><span class="dot green"></span> L7: <span id="pL7">100%</span></span>
+      <span><span class="dot green"></span> L8: <span id="pL8">100%</span></span>
+      <span><span class="dot green"></span> L9: <span id="pL9">100%</span></span>
+      <span><span class="dot green"></span> L10: <span id="pL10">100%</span></span>
+    </div>
+  </div>
+
+  <div class="layers-grid">
+
+    <!-- L1 -->
+    <div class="layer-card" id="l1-card">
+      <div class="layer-header">
+        <div class="layer-badge l1">L1</div>
+        <div><div class="layer-name">Behavioral Biometrics</div><div class="layer-sub">Identity verification</div></div>
+        <div class="layer-status nominal" id="l1-status">NOMINAL</div>
+      </div>
+
+      <!-- Multi-Nurse User Selector & Handoff -->
+      <div class="metric-row" style="margin-bottom:6px;">
+        <span class="metric-label">👤 ACTIVE USER</span>
+        <select id="user-select" style="background:var(--surface);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:2px 6px;font-family:var(--mono);font-size:9px;max-width:120px;">
+          <!-- Populated by JS -->
+        </select>
+      </div>
+      <div class="l1-actions" style="margin-top:0;">
+        <button class="l1-btn" id="btn-handoff" style="border-color:var(--teal);color:var(--teal);">🔄 Simulate Handoff</button>
+      </div>
+
+      <div class="metric-row"><span class="metric-label">TRUST SCORE</span><span class="metric-val ok" id="l1-trust">100%</span></div>
+      <div class="trust-bar-wrap">
+        <div class="trust-bar-bg"><div class="trust-bar-fill" id="l1-bar" style="width:100%;background:var(--green);"></div></div>
+        <div class="trust-label"><span>0%</span><span>100%</span></div>
+      </div>
+      <textarea class="type-area" id="type-input" placeholder="Type to set baseline…" spellcheck="false"></textarea>
+      <div class="l1-actions">
+        <button class="l1-btn primary" id="btn-baseline">Set baseline</button>
+        <button class="l1-btn" id="btn-simulate-intruder">Simulate intruder</button>
+      </div>
+      <div class="metric-row"><span class="metric-label">MATCH</span><span class="metric-val" id="l1-match">—</span></div>
+      <div class="metric-row"><span class="metric-label">SOURCE</span><span class="metric-val" id="l1-source" style="color:var(--muted)">Local</span></div>
+    </div>
+
+    <!-- L2 -->
+    <div class="layer-card" id="l2-card">
+      <div class="layer-header">
+        <div class="layer-badge l2">L2</div>
+        <div><div class="layer-name">Clinical Validation</div><div class="layer-sub">Data integrity</div></div>
+        <div class="layer-status nominal" id="l2-status">NOMINAL</div>
+      </div>
+      <div class="ecg-wrap"><canvas id="ecg-canvas"></canvas></div>
+      <div class="metric-row"><span class="metric-label">HR</span><span class="metric-val ok" id="l2-hr">72 bpm</span></div>
+      <div class="metric-row"><span class="metric-label">SpO₂</span><span class="metric-val ok" id="l2-spo2">98%</span></div>
+      <div class="metric-row"><span class="metric-label">Infusion</span><span class="metric-val ok" id="l2-inf">5.0 ml/hr</span></div>
+      <div class="metric-row"><span class="metric-label">Glucose</span><span class="metric-val ok" id="l2-gluc">88 mg/dL</span></div>
+      <div class="metric-row"><span class="metric-label">ANOMALY</span><span class="metric-val ok" id="l2-anom">0.04</span></div>
+      <div class="metric-row"><span class="metric-label">VALID</span><span class="metric-val ok" id="l2-valid">PASSED</span></div>
+    </div>
+
+    <!-- L3 -->
+    <div class="layer-card" id="l3-card">
+      <div class="layer-header">
+        <div class="layer-badge l3">L3</div>
+        <div><div class="layer-name">Network Segmentation</div><div class="layer-sub">Containment</div></div>
+        <div class="layer-status nominal" id="l3-status">NOMINAL</div>
+      </div>
+      <div class="net-diagram" id="net-diagram">
+        <div class="net-node active" id="nn-workstation"><span class="nn-icon">💻</span>WS<span class="nn-label">Rad</span></div>
+        <div class="net-link" id="nl-1">→</div>
+        <div class="net-node active" id="nn-gateway"><span class="nn-icon">🛡️</span>GW</div>
+        <div class="net-link" id="nl-2">→</div>
+        <div class="net-node active" id="nn-icu"><span class="nn-icon">🫀</span>ICU</div>
+        <div class="net-link" id="nl-3">→</div>
+        <div class="net-node active" id="nn-ehr"><span class="nn-icon">🗄️</span>EHR</div>
+      </div>
+      <div class="metric-row"><span class="metric-label">SEGMENTS</span><span class="metric-val ok" id="l3-segs">4/4</span></div>
+      <div class="metric-row"><span class="metric-label">QUARANTINE</span><span class="metric-val ok" id="l3-quar">0</span></div>
+      <div class="metric-row"><span class="metric-label">BLOCKED</span><span class="metric-val ok" id="l3-pkts">0</span></div>
+    </div>
+
+    <!-- L4 -->
+    <div class="layer-card" id="l4-card">
+      <div class="layer-header">
+        <div class="layer-badge l4">L4</div>
+        <div><div class="layer-name">Device Handshake</div><div class="layer-sub">Fingerprint</div></div>
+        <div class="layer-status nominal" id="l4-status">NOMINAL</div>
+      </div>
+      <div id="device-list"></div>
+      <div class="l1-actions">
+        <button class="l1-btn danger" id="btn-spoof-device">🔄 Spoof</button>
+        <button class="l1-btn" id="btn-reset-devices">↺ Reset</button>
+      </div>
+    </div>
+
+    <!-- L5 -->
+    <div class="layer-card" id="l5-card">
+      <div class="layer-header">
+        <div class="layer-badge l5">L5</div>
+        <div><div class="layer-name">Proximity Fingerprint</div><div class="layer-sub">Location</div></div>
+        <div class="layer-status nominal" id="l5-status">NOMINAL</div>
+      </div>
+      <div class="metric-row"><span class="metric-label">LOGIN</span>
+        <select id="location-select" style="background:var(--surface);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:1px 4px;font-family:var(--mono);font-size:9px;">
+          <option value="Ward 3B">Ward 3B</option>
+          <option value="Radiology">Radiology</option>
+          <option value="Cafeteria">Cafeteria</option>
+          <option value="ICU">ICU</option>
+          <option value="Pharmacy">Pharmacy</option>
+        </select>
+      </div>
+      <div class="metric-row"><span class="metric-label">BADGE</span><span class="metric-val ok" id="l5-badge">Ward 3B</span></div>
+      <div class="metric-row"><span class="metric-label">MATCH</span><span class="metric-val ok" id="l5-match">✅</span></div>
+      <div class="metric-row"><span class="metric-label">TRUST</span><span class="metric-val ok" id="l5-trust">100%</span></div>
+      <div class="l1-actions">
+        <button class="l1-btn emergency" id="btn-emergency">🚨 EM (OFF)</button>
+        <button class="l1-btn" id="btn-move-badge" style="border-color:var(--teal);color:var(--teal);">📌 Move</button>
+      </div>
+    </div>
+
+    <!-- L6 -->
+    <div class="layer-card" id="l6-card">
+      <div class="layer-header">
+        <div class="layer-badge l6">L6</div>
+        <div><div class="layer-name">Endpoint Integrity</div><div class="layer-sub">Workstation</div></div>
+        <div class="layer-status nominal" id="l6-status">NOMINAL</div>
+      </div>
+      <div class="metric-row"><span class="metric-label">System Files</span><span class="metric-val ok" id="l6-files">✅ Verified</span></div>
+      <div class="metric-row"><span class="metric-label">Keyloggers</span><span class="metric-val ok" id="l6-keyloggers">✅ None</span></div>
+      <div class="metric-row"><span class="metric-label">Network</span><span class="metric-val ok" id="l6-network">✅ Secure</span></div>
+      <div class="metric-row"><span class="metric-label">Browser</span><span class="metric-val ok" id="l6-browser">✅ Safe</span></div>
+      <div class="l1-actions"><button class="l1-btn danger" id="btn-compromise-ws">💀 Compromise WS</button></div>
+    </div>
+
+    <!-- L7 -->
+    <div class="layer-card" id="l7-card">
+      <div class="layer-header">
+        <div class="layer-badge l7">L7</div>
+        <div><div class="layer-name">Patient Identity</div><div class="layer-sub">Verification</div></div>
+        <div class="layer-status nominal" id="l7-status">NOMINAL</div>
+      </div>
+      <div class="metric-row"><span class="metric-label">Patient</span><span class="metric-val ok" id="l7-patient">PT-4821</span></div>
+      <div class="metric-row"><span class="metric-label">Wristband</span><span class="metric-val ok" id="l7-wristband">✅ Matched</span></div>
+      <div class="metric-row"><span class="metric-label">Biometric</span><span class="metric-val ok" id="l7-biometric">✅ Verified</span></div>
+      <div class="metric-row"><span class="metric-label">Location</span><span class="metric-val ok" id="l7-location">✅ Bedside</span></div>
+      <div class="l1-actions"><button class="l1-btn danger" id="btn-swap-patient">🔄 Swap Patient ID</button></div>
+    </div>
+
+    <!-- L8 -->
+    <div class="layer-card" id="l8-card">
+      <div class="layer-header">
+        <div class="layer-badge l8">L8</div>
+        <div><div class="layer-name">Data‑in‑Transit</div><div class="layer-sub">Integrity</div></div>
+        <div class="layer-status nominal" id="l8-status">NOMINAL</div>
+      </div>
+      <div class="metric-row"><span class="metric-label">Signature</span><span class="metric-val ok" id="l8-sig">✅ Valid</span></div>
+      <div class="metric-row"><span class="metric-label">Checksum</span><span class="metric-val ok" id="l8-checksum">✅ Match</span></div>
+      <div class="metric-row"><span class="metric-label">Timestamp</span><span class="metric-val ok" id="l8-ts">✅ Fresh</span></div>
+      <div class="metric-row"><span class="metric-label">Packets</span><span class="metric-val ok" id="l8-pkts">✅ 847 OK</span></div>
+      <div class="l1-actions"><button class="l1-btn danger" id="btn-mitm">🌐 Simulate MITM</button></div>
+    </div>
+
+    <!-- L9 -->
+    <div class="layer-card" id="l9-card">
+      <div class="layer-header">
+        <div class="layer-badge l9">L9</div>
+        <div><div class="layer-name">Vendor Access</div><div class="layer-sub">Control</div></div>
+        <div class="layer-status nominal" id="l9-status">NOMINAL</div>
+      </div>
+      <div class="metric-row"><span class="metric-label">Sessions</span><span class="metric-val ok" id="l9-sessions">0 active</span></div>
+      <div class="metric-row"><span class="metric-label">Expiration</span><span class="metric-val ok" id="l9-expiry">—</span></div>
+      <div class="metric-row"><span class="metric-label">Permissions</span><span class="metric-val ok" id="l9-perms">Read‑only</span></div>
+      <div class="metric-row"><span class="metric-label">Audit</span><span class="metric-val ok" id="l9-audit">✅ Clean</span></div>
+      <div class="l1-actions"><button class="l1-btn danger" id="btn-vendor">🔓 Vendor Over‑Perm</button></div>
+    </div>
+
+    <!-- L10 -->
+    <div class="layer-card" id="l10-card">
+      <div class="layer-header">
+        <div class="layer-badge l10">L10</div>
+        <div><div class="layer-name">Insider Threat</div><div class="layer-sub">Detection</div></div>
+        <div class="layer-status nominal" id="l10-status">NOMINAL</div>
+      </div>
+      <div class="metric-row"><span class="metric-label">Risk Score</span><span class="metric-val ok" id="l10-risk">2%</span></div>
+      <div class="metric-row"><span class="metric-label">Access Pattern</span><span class="metric-val ok" id="l10-pattern">✅ Normal</span></div>
+      <div class="metric-row"><span class="metric-label">Data Volume</span><span class="metric-val ok" id="l10-volume">✅ Normal</span></div>
+      <div class="metric-row"><span class="metric-label">Peer Alerts</span><span class="metric-val ok" id="l10-peers">0</span></div>
+      <div class="l1-actions"><button class="l1-btn danger" id="btn-insider">👤 Simulate Insider</button></div>
+    </div>
+  </div>
+
+  <div class="bottom-grid">
+    <div class="attack-panel">
+      <div class="card-title">Attack Simulation Console</div>
+      <div class="attack-grid">
+        <button class="attack-btn" onclick="runScenario('credential')"><span class="ab-icon">🔑</span>Credential Theft</button>
+        <button class="attack-btn" onclick="runScenario('vitals')"><span class="ab-icon">💉</span>Tampered Vitals</button>
+        <button class="attack-btn" onclick="runScenario('lateral')"><span class="ab-icon">🦠</span>Lateral Movement</button>
+        <button class="attack-btn" onclick="runScenario('spoof')"><span class="ab-icon">🔄</span>Device Spoof</button>
+        <button class="attack-btn" onclick="runScenario('location')"><span class="ab-icon">📍</span>Location Mismatch</button>
+        <button class="attack-btn" onclick="runScenario('endpoint')"><span class="ab-icon">💀</span>Compromised WS</button>
+        <button class="attack-btn" onclick="runScenario('patient')"><span class="ab-icon">🔄</span>Patient Swap</button>
+        <button class="attack-btn" onclick="runScenario('mitm')"><span class="ab-icon">🌐</span>MITM Attack</button>
+        <button class="attack-btn" onclick="runScenario('vendor')"><span class="ab-icon">🔓</span>Vendor Over‑Perm</button>
+        <button class="attack-btn" onclick="runScenario('insider')"><span class="ab-icon">👤</span>Insider Threat</button>
+        <button class="attack-btn highlight" id="atk-chain" onclick="runAttackChain()"><span class="ab-icon">🧩</span>🧠 Simulate Attack Chain (All 10 Layers)</button>
+      </div>
+      <button class="reset-btn" onclick="resetConsole()">↺ Reset all panels to nominal</button>
+    </div>
+    <div class="log-panel">
+      <div class="card-title">System Event Log</div>
+      <div class="log-feed" id="log-feed"></div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<div id="view-incidents" class="view">
+<div class="page-wrap">
+  <h2 class="section-title">Incident Log</h2>
+  <p class="section-sub">All security events captured during this session. Run attack scenarios to populate.</p>
+  <div class="inc-stats">
+    <div class="inc-stat"><div class="inc-stat-val" id="stat-total" style="color:var(--text);">0</div><div class="inc-stat-lab">Total</div></div>
+    <div class="inc-stat"><div class="inc-stat-val" id="stat-critical" style="color:var(--alert);">0</div><div class="inc-stat-lab">Critical</div></div>
+    <div class="inc-stat"><div class="inc-stat-val" id="stat-high" style="color:var(--amber);">0</div><div class="inc-stat-lab">High</div></div>
+    <div class="inc-stat"><div class="inc-stat-val" id="stat-resolved" style="color:var(--green);">0</div><div class="inc-stat-lab">Resolved</div></div>
+  </div>
+  <div class="inc-controls">
+    <button class="ic-btn" onclick="exportReport()">⬇ Export Report</button>
+    <button class="ic-btn danger" onclick="clearIncidents()">🗑 Clear All</button>
+  </div>
+  <div id="incident-list"><div class="inc-empty"><div class="ie-icon">🛡️</div><div>No incidents recorded yet.</div></div></div>
+</div>
+</div>
+
+<div class="mfa-overlay" id="mfaModal">
+  <div class="mfa-modal">
+    <span class="mfa-icon">🔐</span>
+    <div class="mfa-title">TOTP Verification</div>
+    <div class="mfa-sub">Enter the 6‑digit code from your authenticator app.</div>
+    <div class="mfa-code-display" id="mfaCodeDisplay">123456</div>
+    <input type="text" class="mfa-input" id="mfaCodeInput" maxlength="6" placeholder="Enter code" autocomplete="off" spellcheck="false" inputmode="numeric" pattern="[0-9]*"/>
+    <div class="mfa-error" id="mfaError">❌ Invalid code</div>
+    <div class="mfa-actions">
+      <button class="mfa-btn verify" id="mfaVerify">✅ Verify</button>
+      <button class="mfa-btn phone" id="mfaPhoneBtn">📱 Phone</button>
+      <button class="mfa-btn cancel" id="mfaCancel">✖ Cancel</button>
+    </div>
+    <div class="mfa-timer" id="mfaTimer">Expires in 30s</div>
+  </div>
+</div>
+
+<script>
+// ── STATE ──────────────────────────────────────────────────────────────────────
+const S = {
+  trustScore: 100,
+  incidents: [],
+  backendConnected: false,
+  baselineIntervals: null,
+  keyTimestamps: [],
+  ecgPhase: 0,
+  vitals: { hr: 72, spo2: 98, inf: 5.0, gluc: 88 },
+  scenarioRunning: false,
+  l3BlockedPackets: 0,
+  l3QuarantinedDevices: 0,
+  mfaResolve: null, mfaTimer: null, mfaCode: '', phoneWindow: null,
+  _mfaActive: false, // prevents multiple MFA popups
+  devices: [
+    { id: 'pump-01', name: 'Infusion Pump', mac: '00:1A:2B:3C:4D:5E', tcp: '65535', rf: '0x7A', status: 'trusted', score: 100 },
+    { id: 'vent-02', name: 'Ventilator', mac: '00:1A:2B:3C:4D:5F', tcp: '16384', rf: '0x8B', status: 'trusted', score: 100 },
+    { id: 'monitor-03', name: 'Patient Monitor', mac: '00:1A:2B:3C:4D:60', tcp: '8192', rf: '0x9C', status: 'trusted', score: 100 },
+  ],
+  currentLocation: 'Ward 3B',
+  badgeLocation: 'Ward 3B',
+  emergencyMode: false,
+  locationTrust: 100,
+  locationMatch: true,
+  eventHistory: [],
+  chainDetected: false,
+  endpointCompromised: false,
+  patientSwapped: false,
+  mitmActive: false,
+  vendorCompromised: false,
+  insiderThreat: false,
+};
+
+// ── Multi-Nurse Support ──────────────────────────────────────────────────────
+const NURSES = [
+  { id: 'nurse-priya', name: 'Priya', shift: 'Morning' },
+  { id: 'nurse-sarah', name: 'Sarah', shift: 'Morning' },
+  { id: 'nurse-john', name: 'John', shift: 'Morning' },
+  { id: 'nurse-maria', name: 'Maria', shift: 'Morning' },
+  { id: 'nurse-david', name: 'David', shift: 'Morning' },
+  { id: 'nurse-aisha', name: 'Aisha', shift: 'Morning' },
+  { id: 'nurse-rahul', name: 'Rahul', shift: 'Evening' },
+  { id: 'nurse-emma', name: 'Emma', shift: 'Evening' },
+  { id: 'nurse-chen', name: 'Chen', shift: 'Evening' },
+  { id: 'nurse-kenji', name: 'Kenji', shift: 'Night' },
+  { id: 'nurse-laura', name: 'Laura', shift: 'Night' },
+  { id: 'nurse-ahmed', name: 'Ahmed', shift: 'Night' },
+];
+const USER_STATE = {
+  currentUser: 'nurse-priya',
+  baselines: {},
+};
+
+function populateUserDropdown() {
+  const select = document.getElementById('user-select');
+  select.innerHTML = NURSES.map(n =>
+    `<option value="${n.id}">${n.name} (${n.shift})</option>`
+  ).join('');
+}
+populateUserDropdown();
+
+// ── API ────────────────────────────────────────────────────────────────────────
+const API = {
+  BASE: window.location.origin,
+  async call(method, path, body) {
+    try {
+      const res = await fetch(API.BASE + path, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined,
+        signal: AbortSignal.timeout(3000),
+      });
+      return await res.json();
+    } catch { return null; }
+  },
+  health: () => API.call('GET', '/api/health'),
+  saveBaseline: (u, i) => API.call('POST', '/api/baseline', { userId: u, intervals: i }),
+  getBaseline: (u) => API.call('GET', `/api/baseline/${u}`),
+  authCheck: (u, live) => API.call('POST', '/api/auth-check', { userId: u, liveIntervals: live }),
+  logIncident: (inc) => API.call('POST', '/api/incidents', inc),
+  getIncidents: () => API.call('GET', '/api/incidents'),
+  clearIncidents: () => API.call('DELETE', '/api/incidents'),
+};
+
+// ── Backend poll ──────────────────────────────────────────────────────────────
+async function pollBackend() {
+  const data = await API.health();
+  const pill = document.getElementById('backend-pill');
+  if (data && data.status === 'ok') {
+    S.backendConnected = true;
+    pill.textContent = '🟢 Connected';
+    pill.className = 'connected';
+    const res = await API.getIncidents();
+    if (res && res.incidents && res.incidents.length) {
+      res.incidents.forEach(inc => {
+        if (!S.incidents.find(i => i.id === inc.id)) {
+          S.incidents.push({ ...inc, priority: inc.priority || 'medium', recommendation: inc.recommendation || '' });
+        }
+      });
+      renderIncidentLog();
+      updatePostureScore();
+    }
+    await loadUserBaseline(S.currentUser);
+  } else {
+    S.backendConnected = false;
+    pill.textContent = '⚫ Offline';
+    pill.className = 'disconnected';
+  }
+}
+pollBackend();
+setInterval(pollBackend, 10000);
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+document.querySelectorAll('.nav-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('view-' + btn.dataset.view).classList.add('active');
+    if (btn.dataset.view === 'incidents') renderIncidentLog();
+  });
+});
+
+// ── Logging ────────────────────────────────────────────────────────────────────
+function log(msg, type = 'ok') {
+  const feed = document.getElementById('log-feed');
+  const ts = new Date().toLocaleTimeString('en-GB');
+  const cls = type === 'crit' ? 'le-crit' : type === 'warn' ? 'le-warn' : type === 'highlight' ? 'le-highlight' : 'le-ok';
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+  entry.innerHTML = `<span class="le-time">[${ts}]</span> <span class="${cls}">${msg}</span>`;
+  feed.prepend(entry);
+  while (feed.children.length > 50) feed.removeChild(feed.lastChild);
+}
+
+// ── Incident Store ─────────────────────────────────────────────────────────────
+function getPriority(inc) {
+  if (inc.severity === 'critical' || inc.layer === 'Correlation Engine') return 'critical';
+  if (inc.severity === 'high') return 'high';
+  if (inc.layer === 'Layer 6' || inc.layer === 'Layer 7' || inc.layer === 'Layer 8') return 'high';
+  return 'medium';
+}
+function getRecommendation(inc) {
+  const map = {
+    'Layer 1': 'Force MFA re‑authentication and review user account',
+    'Layer 2': 'Verify patient condition manually; cross‑check vitals',
+    'Layer 3': 'Isolate affected segment and scan for malware',
+    'Layer 4': 'Quarantine device and re‑image firmware',
+    'Layer 5': 'Verify nurse\'s physical location with badge audit',
+    'Layer 6': 'Force logout, re‑image workstation, scan for malware',
+    'Layer 7': 'Re‑verify patient identity using wristband and biometrics',
+    'Layer 8': 'Re‑establish secure channel; verify data integrity',
+    'Layer 9': 'Revoke vendor access and review permissions',
+    'Layer 10': 'Escalate to HR; monitor user activity; restrict access',
+    'Correlation Engine': 'Escalate to SOC; isolate all affected assets',
+  };
+  return map[inc.layer] || 'Review incident and escalate if necessary';
+}
+
+function recordIncident(inc) {
+  const priority = inc.priority || getPriority(inc);
+  const recommendation = inc.recommendation || getRecommendation(inc);
+  S.incidents.unshift({ ...inc, priority, recommendation });
+  renderIncidentLog();
+  if (S.backendConnected) API.logIncident({ ...inc, priority, recommendation });
+  updatePostureScore();
+}
+
+function renderIncidentLog() {
+  const list = document.getElementById('incident-list');
+  const total = S.incidents.length;
+  const critical = S.incidents.filter(i => i.severity === 'critical').length;
+  const high = S.incidents.filter(i => i.severity === 'high').length;
+  document.getElementById('stat-total').textContent = total;
+  document.getElementById('stat-critical').textContent = critical;
+  document.getElementById('stat-high').textContent = high;
+  document.getElementById('stat-resolved').textContent = 0;
+  if (!total) {
+    list.innerHTML = '<div class="inc-empty"><div class="ie-icon">🛡️</div><div>No incidents recorded yet.</div></div>';
+    return;
+  }
+  list.innerHTML = S.incidents.map(inc => `
+    <div class="inc-item">
+      <div class="inc-sev ${inc.severity}"></div>
+      <div class="inc-body">
+        <div class="inc-title">${inc.title}</div>
+        <div class="inc-detail">${inc.detail}</div>
+        <div class="inc-meta">
+          <span class="inc-priority ${inc.priority}">${(inc.priority||'medium').toUpperCase()}</span>
+          <span class="inc-id">${inc.id}</span>
+          <span class="inc-time">${new Date(inc.timestamp).toLocaleString('en-GB')}</span>
+        </div>
+        ${inc.recommendation ? `<div class="inc-recommendation">💡 ${inc.recommendation}</div>` : ''}
+      </div>
+    </div>`).join('');
+}
+
+function clearIncidents() { S.incidents = []; if (S.backendConnected) API.clearIncidents(); renderIncidentLog(); updatePostureScore(); log('Incident log cleared', 'warn'); }
+function exportReport() {
+  if (!S.incidents.length) { alert('No incidents to export.'); return; }
+  const lines = [
+    '═══════════════════════════════════════════════════',
+    '  IoMT SENTINEL — SECURITY INCIDENT REPORT',
+    `  Generated: ${new Date().toLocaleString('en-GB')}`,
+    `  Backend: ${S.backendConnected ? 'Connected' : 'Offline'}`,
+    '═══════════════════════════════════════════════════\n',
+    `Total Incidents: ${S.incidents.length}`,
+    ...S.incidents.map(inc =>
+      `[${new Date(inc.timestamp).toLocaleString('en-GB')}]\nID: ${inc.id}\nLayer: ${inc.layer} | Priority: ${(inc.priority||'medium').toUpperCase()}\nTitle: ${inc.title}\nDetail: ${inc.detail}\nRecommendation: ${inc.recommendation || 'None'}\n`
+    ),
+    '─── END OF REPORT ───',
+  ];
+  const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = `iomt-report-${Date.now()}.txt`; a.click();
+  log('Report exported', 'ok');
+}
+
+// ── L1 Biometrics ─────────────────────────────────────────────────────────────
+const typeInput = document.getElementById('type-input');
+function mean(arr) { return arr.reduce((s,v) => s+v, 0) / arr.length || 0; }
+function stdev(arr) { const m = mean(arr); return Math.sqrt(arr.reduce((s,v) => s + (v-m)**2, 0) / Math.max(1, arr.length)); }
+function pearson(a, b) {
+  const n = Math.min(a.length, b.length);
+  if (n < 2) return 0;
+  const am = mean(a.slice(0,n)), bm = mean(b.slice(0,n));
+  let num=0, da=0, db=0;
+  for(let i=0;i<n;i++){ num+=(a[i]-am)*(b[i]-bm); da+=(a[i]-am)**2; db+=(b[i]-bm)**2; }
+  return (da&&db) ? num/Math.sqrt(da*db) : 0;
+}
+function intervalsOf(ts) { const r=[]; for(let i=1;i<ts.length;i++) r.push(ts[i]-ts[i-1]); return r; }
+function computeScore(base, live) {
+  if (!base.length || !live.length) return 50;
+  const b = base.slice(-15), l = live.slice(-15);
+  const bm = mean(b), lm = mean(l);
+  const speedRatio = Math.min(bm,lm) / Math.max(bm,lm || 1);
+  const corr = (pearson(b,l) + 1) / 2;
+  const bcv = stdev(b)/Math.max(bm,1), lcv = stdev(l)/Math.max(lm,1);
+  const cvSim = 1 - Math.min(Math.abs(bcv-lcv)/Math.max(bcv,lcv,0.1), 1);
+  return Math.max(0, Math.round(speedRatio*35 + corr*45 + cvSim*20 - (speedRatio<0.6?30:0)));
+}
+typeInput.addEventListener('focus', () => { S.keyTimestamps = []; });
+typeInput.addEventListener('keydown', () => {
+  S.keyTimestamps.push(Date.now());
+  analyzeTyping();
+});
+
+function analyzeTyping() {
+  const live = intervalsOf(S.keyTimestamps);
+  if (!S.baselineIntervals) return;
+  let score = computeScore(S.baselineIntervals, live);
+  updateTrustScore(score);
+  updateMatchDisplay(score);
+}
+
+// ── FIXED: OTP triggered on ANY mismatch ──────────────────────────────────────
+function updateMatchDisplay(score) {
+  const el = document.getElementById('l1-match');
+  el.textContent = score + '%';
+  el.className = 'metric-val ' + (score >= 70 ? 'ok' : score >= 50 ? 'warn' : 'bad');
+  const card = document.getElementById('l1-card');
+  const stat = document.getElementById('l1-status');
+  const input = document.getElementById('type-input');
+
+  if (score < 50) {
+    // Flag the card
+    card.className = 'layer-card flagged';
+    stat.textContent = 'FLAGGED';
+    stat.className = 'layer-status flagged';
+    input.className = 'type-area flagged';
+    showBanner('Behavioral Anomaly', 'Typing mismatch detected');
+
+    // Log incident
+    recordIncident({
+      id: 'INC-L1-'+Date.now(),
+      timestamp: Date.now(),
+      layer: 'Layer 1',
+      severity: 'critical',
+      title: 'Credential Theft — Behavioral Mismatch',
+      detail: `Trust score dropped to ${score}%. Suspected unauthorized access.`
+    });
+    log(`⚠ L1: Mismatch — ${score}%`, 'crit');
+
+    // Push event for correlation
+    S.eventHistory.push({ time: Date.now(), layer: 'L1', event: 'mismatch' });
+    runCorrelationEngine();
+
+    // ─── TRIGGER OTP MODAL ───
+    if (!S._mfaActive) {
+      S._mfaActive = true;
+      showMFA().then(approved => {
+        if (approved) {
+          log('✅ MFA verified – trust restored', 'ok');
+          // Reset trust and UI
+          S.trustScore = 100;
+          updateTrustScore(100);
+          card.className = 'layer-card';
+          stat.textContent = 'NOMINAL';
+          stat.className = 'layer-status nominal';
+          input.className = 'type-area';
+          el.textContent = '100%';
+          el.className = 'metric-val ok';
+          document.getElementById('status-pill').textContent = '● ALL SYSTEMS NOMINAL';
+          document.getElementById('status-pill').className = 'nominal';
+          // Update incident detail
+          const lastInc = S.incidents[0];
+          if (lastInc && lastInc.layer === 'Layer 1') {
+            lastInc.detail += ' — MFA verified successfully.';
+            renderIncidentLog();
+          }
+        } else {
+          log('⛔ MFA failed – session locked', 'crit');
+          document.getElementById('status-pill').textContent = '⛔ ACCESS LOCKED (MFA failed)';
+          document.getElementById('status-pill').className = 'critical';
+          // Keep card flagged
+        }
+        S._mfaActive = false;
+        updatePostureScore();
+      });
+    }
+  } else if (score < 70) {
+    card.className = 'layer-card warning';
+    stat.textContent = 'MONITOR';
+    stat.className = 'layer-status warning';
+  } else {
+    card.className = 'layer-card';
+    stat.textContent = 'NOMINAL';
+    stat.className = 'layer-status nominal';
+    input.className = 'type-area';
+  }
+  updatePostureScore();
+}
+
+function updateTrustScore(score) {
+  S.trustScore = score;
+  document.getElementById('l1-trust').textContent = score + '%';
+  const bar = document.getElementById('l1-bar');
+  bar.style.width = score + '%';
+  bar.style.background = score >= 70 ? 'var(--green)' : score >= 50 ? 'var(--amber)' : 'var(--alert)';
+  const sp = document.getElementById('status-pill');
+  if (score < 50) { sp.textContent = '⚠ ELEVATED RISK'; sp.className = 'critical'; }
+  else if (score < 70) { sp.textContent = '⚡ MONITORING'; sp.className = 'warning'; }
+  else if (S.incidents.length === 0) { sp.textContent = '● ALL SYSTEMS NOMINAL'; sp.className = 'nominal'; }
+}
+
+// ── Multi-Nurse Functions ─────────────────────────────────────────────────────
+async function loadUserBaseline(userId) {
+  if (S.backendConnected) {
+    const res = await API.getBaseline(userId);
+    if (res && res.intervals) {
+      USER_STATE.baselines[userId] = res.intervals;
+      S.baselineIntervals = res.intervals;
+      document.getElementById('l1-match').textContent = '100% match';
+      document.getElementById('l1-match').className = 'metric-val ok';
+      return res.intervals;
+    }
+  }
+  if (USER_STATE.baselines[userId]) {
+    S.baselineIntervals = USER_STATE.baselines[userId];
+    document.getElementById('l1-match').textContent = '100% match';
+    document.getElementById('l1-match').className = 'metric-val ok';
+    return USER_STATE.baselines[userId];
+  }
+  S.baselineIntervals = null;
+  document.getElementById('l1-match').textContent = '— no baseline set';
+  document.getElementById('l1-match').className = 'metric-val';
+  return null;
+}
+
+async function switchUser(userId) {
+  const nurse = NURSES.find(n => n.id === userId);
+  const label = nurse ? nurse.name : userId;
+  log(`👤 Switching to ${label}...`, 'ok');
+  const baseline = await loadUserBaseline(userId);
+  if (baseline) {
+    log(`✅ Loaded baseline for ${label}`, 'ok');
+  } else {
+    log(`⚠️ No baseline found for ${label} — set one by typing and clicking "Set baseline"`, 'warn');
+  }
+  document.getElementById('user-select').value = userId;
+  S.currentUser = userId;
+  S.keyTimestamps = [];
+  typeInput.value = '';
+  typeInput.placeholder = `Type to set baseline for ${label}...`;
+  document.getElementById('l1-card').className = 'layer-card';
+  document.getElementById('l1-status').textContent = 'NOMINAL';
+  document.getElementById('l1-status').className = 'layer-status nominal';
+  typeInput.className = 'type-area';
+  updatePostureScore();
+}
+
+document.getElementById('user-select').addEventListener('change', function() {
+  switchUser(this.value);
+});
+
+document.getElementById('btn-handoff').addEventListener('click', async function() {
+  const current = document.getElementById('user-select').value;
+  const available = NURSES.filter(n => n.id !== current);
+  const random = available[Math.floor(Math.random() * available.length)];
+  const currentName = NURSES.find(n => n.id === current)?.name || current;
+  log(`🔄 Shift handoff: ${currentName} → ${random.name}`, 'highlight');
+  showBanner('🔄 Shift Handoff', `${random.name} is now taking over patient care`);
+  await switchUser(random.id);
+  recordIncident({
+    id: 'INC-HANDOFF-'+Date.now(),
+    timestamp: Date.now(),
+    layer: 'System',
+    severity: 'medium',
+    title: 'Shift Handoff',
+    detail: `${random.name} (${random.shift} shift) took over patient care`
+  });
+});
+
+document.getElementById('btn-baseline').addEventListener('click', async function(e) {
+  e.stopPropagation();
+  const live = intervalsOf(S.keyTimestamps);
+  if (live.length < 4) { log('Type at least 5 characters to set a baseline', 'warn'); return; }
+  S.baselineIntervals = live;
+  USER_STATE.baselines[S.currentUser] = live;
+  S.keyTimestamps = [];
+  document.getElementById('l1-match').textContent = '100% match';
+  document.getElementById('l1-match').className = 'metric-val ok';
+  const nurse = NURSES.find(n => n.id === S.currentUser);
+  log(`L1: Baseline set for ${nurse ? nurse.name : S.currentUser}`, 'ok');
+  if (S.backendConnected) {
+    const r = await API.saveBaseline(S.currentUser, live);
+    if (r && r.ok) log(`L1: Baseline persisted to server for ${S.currentUser}`, 'ok');
+  }
+  updatePostureScore();
+});
+
+document.getElementById('btn-simulate-intruder').addEventListener('click', function(e) {
+  e.stopPropagation();
+  if (!S.baselineIntervals) { log('Set a baseline first for the current user', 'warn'); return; }
+  const robotic = Array.from({length: 15}, () => 60 + Math.random()*5);
+  S.keyTimestamps = [];
+  let t = Date.now();
+  robotic.forEach(gap => { t += gap; S.keyTimestamps.push(t); });
+  typeInput.value = 'admin_override';
+  analyzeTyping();
+  log(`L1: Intruder simulation for ${S.currentUser}`, 'warn');
+});
+
+// ── ECG ────────────────────────────────────────────────────────────────────────
+const ecgCanvas = document.getElementById('ecg-canvas');
+const ctx = ecgCanvas.getContext('2d');
+let ecgData = Array(200).fill(0), ecgGlitch = false;
+function ecgTick() {
+  const w = ecgCanvas.parentElement.clientWidth - 12;
+  const h = 36;
+  ecgCanvas.width = w; ecgCanvas.height = h;
+  S.ecgPhase += 0.06;
+  const p = S.ecgPhase % (Math.PI * 2);
+  let v = 0;
+  if (p < 0.3) v = Math.sin(p * 10) * 0.4;
+  else if (p > 0.8 && p < 1.0) v = Math.sin((p - 0.8) * 30) * 1.2;
+  else if (p > 2.0 && p < 2.2) v = -Math.sin((p - 2.0) * 15) * 0.3;
+  if (ecgGlitch) v = (Math.random() - 0.5) * 2;
+  ecgData.push(v); ecgData.shift();
+  ctx.clearRect(0,0,w,h);
+  ctx.strokeStyle = ecgGlitch ? '#D7263D' : '#39FF14';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ecgData.forEach((val, i) => { const x = (i/ecgData.length)*w, y = h/2 - val*(h/3); i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y); });
+  ctx.stroke();
+}
+setInterval(ecgTick, 40);
+
+// ── L2 Vitals ─────────────────────────────────────────────────────────────────
+let vitalsAttack = false, vitalsAttackType = null;
+function vitalsNoise(base, pct) { return +(base + (Math.random()-0.5)*2*base*pct).toFixed(1); }
+function updateVitals() {
+  if (vitalsAttack) {
+    if (vitalsAttackType === 'spo2') { S.vitals.spo2 = vitalsNoise(71, 0.02); S.vitals.hr = vitalsNoise(115, 0.05); }
+    else if (vitalsAttackType === 'infusion') { S.vitals.inf = vitalsNoise(48, 0.03); S.vitals.gluc = vitalsNoise(210, 0.03); }
+  } else {
+    S.vitals.hr = vitalsNoise(72, 0.03); S.vitals.spo2 = vitalsNoise(98, 0.005);
+    S.vitals.inf = vitalsNoise(5.0, 0.02); S.vitals.gluc = vitalsNoise(88, 0.02);
+  }
+  const setVital = (id, val, ok, warn) => {
+    const el = document.getElementById(id);
+    el.textContent = val;
+    el.className = 'metric-val ' + (ok(val) ? 'ok' : warn(val) ? 'warn' : 'bad');
+  };
+  setVital('l2-hr', `${S.vitals.hr} bpm`, v => parseFloat(v)>=60&&parseFloat(v)<=100, v => parseFloat(v)<130);
+  setVital('l2-spo2', `${S.vitals.spo2}%`, v => parseFloat(v)>=95, v => parseFloat(v)>=85);
+  setVital('l2-inf', `${S.vitals.inf} ml/hr`, v => parseFloat(v)<=7, v => parseFloat(v)<=15);
+  setVital('l2-gluc', `${S.vitals.gluc} mg/dL`, v => parseFloat(v)>=70&&parseFloat(v)<=100, v => parseFloat(v)<=140);
+  let anomaly = vitalsAttack ? (vitalsAttackType === 'spo2' ? 0.89 : 0.93) : 0.04;
+  document.getElementById('l2-anom').textContent = anomaly.toFixed(2);
+  document.getElementById('l2-anom').className = 'metric-val ' + (anomaly > 0.7 ? 'bad' : anomaly > 0.3 ? 'warn' : 'ok');
+  const valid = document.getElementById('l2-valid');
+  if (vitalsAttack) {
+    valid.textContent = 'BLOCKED'; valid.className = 'metric-val bad';
+    if (!S._vitalsLogged) { S._vitalsLogged = true; S.eventHistory.push({ time: Date.now(), layer: 'L2', event: 'anomaly' }); runCorrelationEngine(); }
+  } else {
+    valid.textContent = 'PASSED'; valid.className = 'metric-val ok';
+    S._vitalsLogged = false;
+  }
+  updatePostureScore();
+}
+setInterval(updateVitals, 1000);
+
+// ── Incident banner ───────────────────────────────────────────────────────────
+let bannerTimer = null;
+function showBanner(title, detail) {
+  document.getElementById('ib-title').textContent = title;
+  document.getElementById('ib-detail').textContent = detail;
+  const b = document.getElementById('incident-banner');
+  b.style.display = 'flex';
+  clearTimeout(bannerTimer);
+  bannerTimer = setTimeout(() => { b.style.display = 'none'; }, 8000);
+}
+
+// ── MFA ────────────────────────────────────────────────────────────────────────
+const mfaModal = document.getElementById('mfaModal');
+const mfaCodeDisplay = document.getElementById('mfaCodeDisplay');
+const mfaCodeInput = document.getElementById('mfaCodeInput');
+const mfaVerify = document.getElementById('mfaVerify');
+const mfaCancel = document.getElementById('mfaCancel');
+const mfaTimerEl = document.getElementById('mfaTimer');
+const mfaErrorEl = document.getElementById('mfaError');
+const mfaPhoneBtn = document.getElementById('mfaPhoneBtn');
+function generateTOTP() { return Math.floor(100000 + Math.random() * 900000).toString(); }
+function showMFA() {
+  return new Promise((resolve) => {
+    S.mfaResolve = resolve;
+    S.mfaCode = generateTOTP();
+    mfaCodeDisplay.textContent = S.mfaCode;
+    mfaCodeInput.value = '';
+    mfaErrorEl.style.display = 'none';
+    mfaModal.classList.add('active');
+    mfaCodeInput.focus();
+    let seconds = 30;
+    mfaTimerEl.textContent = `Expires in ${seconds}s`;
+    clearInterval(S.mfaTimer);
+    S.mfaTimer = setInterval(() => {
+      seconds -= 1;
+      if (seconds <= 0) { clearInterval(S.mfaTimer); mfaTimerEl.textContent = 'Expired'; if (S.phoneWindow && !S.phoneWindow.closed) S.phoneWindow.close(); handleMFA(false); }
+      else { mfaTimerEl.textContent = `Expires in ${seconds}s`; if (S.phoneWindow && !S.phoneWindow.closed) { try { S.phoneWindow.document.getElementById('phoneCode').textContent = S.mfaCode; S.phoneWindow.document.getElementById('phoneTimer').textContent = `${seconds}s`; } catch(e) {} } }
+    }, 1000);
+  });
+}
+function hideMFA() { mfaModal.classList.remove('active'); clearInterval(S.mfaTimer); if (S.phoneWindow && !S.phoneWindow.closed) S.phoneWindow.close(); S.phoneWindow = null; }
+function handleMFA(approved) { if (S.mfaResolve) { S.mfaResolve(approved); S.mfaResolve = null; } hideMFA(); }
+mfaVerify.addEventListener('click', () => { const entered = mfaCodeInput.value.trim(); if (entered === S.mfaCode) { mfaErrorEl.style.display = 'none'; handleMFA(true); } else { mfaErrorEl.style.display = 'block'; mfaCodeInput.value = ''; mfaCodeInput.focus(); } });
+mfaCancel.addEventListener('click', () => handleMFA(false));
+mfaPhoneBtn.addEventListener('click', () => {
+  if (S.phoneWindow && !S.phoneWindow.closed) { S.phoneWindow.focus(); return; }
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Authenticator</title><style>*{margin:0;padding:0;box-sizing:border-box}body{background:#0B2545;display:flex;align-items:center;justify-content:center;height:100vh;font-family:'Inter',sans-serif;padding:20px}.phone{background:#0D1F3C;border-radius:40px;padding:30px 20px 20px;max-width:340px;width:100%;border:2px solid #1e3a5f;box-shadow:0 20px 60px rgba(0,0,0,0.8);text-align:center}.phone-notch{width:100px;height:20px;background:#0B2545;border-radius:0 0 12px 12px;margin:-30px auto 16px;border:1px solid #1e3a5f;border-top:none}.phone-icon{font-size:36px;margin-bottom:12px}.phone-title{color:#8FA3BF;font-size:14px;font-weight:500;margin-bottom:8px}.phone-code{font-family:'IBM Plex Mono',monospace;font-size:44px;font-weight:700;letter-spacing:12px;color:#39FF14;background:#0B2545;padding:20px 0;border-radius:12px;border:1px solid #1e3a5f;text-shadow:0 0 20px rgba(57,255,20,0.3);margin-bottom:16px}.phone-timer{color:#8FA3BF;font-size:13px;font-family:'IBM Plex Mono',monospace}</style></head><body><div class="phone"><div class="phone-notch"></div><div class="phone-icon">🔐</div><div class="phone-title">Authenticator Code</div><div class="phone-code" id="phoneCode">${S.mfaCode}</div><div class="phone-timer">Expires in <span id="phoneTimer">30s</span></div></div></body></html>`;
+  const blob = new Blob([html], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  S.phoneWindow = window.open(url, '_blank', 'width=400,height=700,menubar=no,toolbar=no,location=no,status=no');
+});
+mfaCodeInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') mfaVerify.click(); });
+
+// ── L4 Devices ────────────────────────────────────────────────────────────────
+function renderDevices() {
+  const container = document.getElementById('device-list');
+  container.innerHTML = S.devices.map(d => `
+    <div class="metric-row">
+      <span class="metric-label">${d.name}</span>
+      <span class="metric-val ${d.status === 'trusted' ? 'ok' : 'bad'}">${d.status === 'trusted' ? '✅' : '⚠️'} ${d.score}%</span>
+    </div>`).join('');
+  const l4card = document.getElementById('l4-card');
+  const l4status = document.getElementById('l4-status');
+  const compromised = S.devices.some(d => d.status === 'compromised');
+  if (compromised) { l4card.className = 'layer-card flagged'; l4status.textContent = '⚠️ SPOOFED'; l4status.className = 'layer-status flagged'; }
+  else { l4card.className = 'layer-card'; l4status.textContent = 'NOMINAL'; l4status.className = 'layer-status nominal'; }
+  updatePostureScore();
+}
+function spoofRandomDevice() {
+  const trusted = S.devices.filter(d => d.status === 'trusted');
+  if (!trusted.length) { log('All devices compromised', 'warn'); return; }
+  const target = trusted[Math.floor(Math.random() * trusted.length)];
+  target.status = 'compromised'; target.score = Math.floor(Math.random() * 40) + 10;
+  renderDevices();
+  document.getElementById('l3-segs').textContent = '3/4';
+  document.getElementById('l3-quar').textContent = '1';
+  S.l3BlockedPackets += 347;
+  document.getElementById('l3-pkts').textContent = S.l3BlockedPackets;
+  document.getElementById('l3-card').className = 'layer-card flagged';
+  document.getElementById('l3-status').textContent = 'QUARANTINE';
+  document.getElementById('l3-status').className = 'layer-status flagged';
+  recordIncident({ id: 'INC-L4-'+Date.now(), timestamp: Date.now(), layer: 'Layer 4', severity: 'critical', title: `Device Spoofing — ${target.name}`, detail: `Fingerprint mismatch on ${target.name}. Quarantined.` });
+  showBanner('🔄 Device Spoofed', `${target.name} quarantined`);
+  log(`⚠ L4: ${target.name} spoofed`, 'crit');
+  S.eventHistory.push({ time: Date.now(), layer: 'L4', event: 'spoof' });
+  runCorrelationEngine();
+  updatePostureScore();
+}
+function resetDevices() {
+  S.devices.forEach(d => { d.status = 'trusted'; d.score = 100; });
+  renderDevices();
+  if (S.l3QuarantinedDevices > 0) {
+    document.getElementById('l3-segs').textContent = '4/4';
+    document.getElementById('l3-quar').textContent = '0';
+    document.getElementById('l3-card').className = 'layer-card';
+    document.getElementById('l3-status').textContent = 'NOMINAL';
+    document.getElementById('l3-status').className = 'layer-status nominal';
+    S.l3QuarantinedDevices = 0;
+  }
+  log('L4: Devices reset', 'ok');
+  updatePostureScore();
+}
+document.getElementById('btn-spoof-device').addEventListener('click', spoofRandomDevice);
+document.getElementById('btn-reset-devices').addEventListener('click', resetDevices);
+
+// ── L5 Proximity ──────────────────────────────────────────────────────────────
+function updateProximity() {
+  const current = document.getElementById('location-select').value;
+  const badge = S.badgeLocation;
+  const match = current === badge;
+  S.currentLocation = current; S.locationMatch = match; S.locationTrust = match ? 100 : 20;
+  document.getElementById('l5-badge').textContent = badge;
+  document.getElementById('l5-match').textContent = match ? '✅' : '❌';
+  document.getElementById('l5-match').className = 'metric-val ' + (match ? 'ok' : 'bad');
+  const trust = S.emergencyMode ? 100 : S.locationTrust;
+  document.getElementById('l5-trust').textContent = trust + '%';
+  document.getElementById('l5-trust').className = 'metric-val ' + (trust >= 70 ? 'ok' : 'bad');
+  const l5card = document.getElementById('l5-card');
+  const l5status = document.getElementById('l5-status');
+  if (!match && !S.emergencyMode) {
+    l5card.className = 'layer-card warning';
+    l5status.textContent = '⚠️ MISMATCH'; l5status.className = 'layer-status warning';
+    if (!S._locMismatchLogged) {
+      S._locMismatchLogged = true;
+      recordIncident({ id: 'INC-L5-'+Date.now(), timestamp: Date.now(), layer: 'Layer 5', severity: 'high', title: 'Location Mismatch', detail: `Login from ${current}, badge in ${badge}` });
+      showBanner('📍 Location Mismatch', `Badge in ${badge}, login from ${current}`);
+      log(`⚠ L5: Location mismatch — ${badge} vs ${current}`, 'warn');
+      S.eventHistory.push({ time: Date.now(), layer: 'L5', event: 'mismatch' });
+      runCorrelationEngine();
+    }
+  } else {
+    l5card.className = 'layer-card';
+    l5status.textContent = S.emergencyMode ? '🚨 EMERGENCY' : 'NOMINAL';
+    l5status.className = S.emergencyMode ? 'layer-status warning' : 'layer-status nominal';
+    S._locMismatchLogged = false;
+  }
+  updatePostureScore();
+}
+document.getElementById('location-select').addEventListener('change', updateProximity);
+document.getElementById('btn-move-badge').addEventListener('click', () => {
+  const locs = ['Ward 3B', 'Radiology', 'Cafeteria', 'ICU', 'Pharmacy'];
+  S.badgeLocation = locs[(locs.indexOf(S.badgeLocation) + 1) % locs.length];
+  updateProximity();
+  log(`📍 Badge moved to ${S.badgeLocation}`, 'ok');
+});
+document.getElementById('btn-emergency').addEventListener('click', function() {
+  S.emergencyMode = !S.emergencyMode;
+  this.textContent = S.emergencyMode ? '🚨 EM (ON)' : '🚨 EM (OFF)';
+  this.className = 'l1-btn emergency' + (S.emergencyMode ? ' active' : '');
+  if (S.emergencyMode) { log('🚨 Emergency Mode ON', 'warn'); recordIncident({ id: 'INC-EM-'+Date.now(), timestamp: Date.now(), layer: 'Layer 5', severity: 'medium', title: 'Emergency Mode Activated', detail: 'Location checks disabled' }); }
+  else { log('🔄 Emergency Mode OFF', 'ok'); }
+  updateProximity();
+});
+
+// ── L6 Endpoint Integrity ────────────────────────────────────────────────────
+function updateEndpoint() {
+  const comp = S.endpointCompromised;
+  const card = document.getElementById('l6-card');
+  const status = document.getElementById('l6-status');
+  if (comp) {
+    card.className = 'layer-card flagged';
+    status.textContent = '⚠️ COMPROMISED'; status.className = 'layer-status flagged';
+    document.getElementById('l6-files').textContent = '⚠️ Modified'; document.getElementById('l6-files').className = 'metric-val bad';
+    document.getElementById('l6-keyloggers').textContent = '⚠️ Detected'; document.getElementById('l6-keyloggers').className = 'metric-val bad';
+    document.getElementById('l6-network').textContent = '⚠️ Suspicious'; document.getElementById('l6-network').className = 'metric-val bad';
+    document.getElementById('l6-browser').textContent = '⚠️ Infected'; document.getElementById('l6-browser').className = 'metric-val bad';
+    if (!S._endpointLogged) {
+      S._endpointLogged = true;
+      recordIncident({ id: 'INC-L6-'+Date.now(), timestamp: Date.now(), layer: 'Layer 6', severity: 'critical', title: 'Endpoint Compromised', detail: 'Keylogger detected on workstation' });
+      showBanner('💀 Endpoint Compromised', 'Workstation infected with keylogger');
+      log('⚠ L6: Endpoint compromised', 'crit');
+      S.eventHistory.push({ time: Date.now(), layer: 'L6', event: 'compromise' });
+      runCorrelationEngine();
+    }
+  } else {
+    card.className = 'layer-card';
+    status.textContent = 'NOMINAL'; status.className = 'layer-status nominal';
+    document.getElementById('l6-files').textContent = '✅ Verified'; document.getElementById('l6-files').className = 'metric-val ok';
+    document.getElementById('l6-keyloggers').textContent = '✅ None'; document.getElementById('l6-keyloggers').className = 'metric-val ok';
+    document.getElementById('l6-network').textContent = '✅ Secure'; document.getElementById('l6-network').className = 'metric-val ok';
+    document.getElementById('l6-browser').textContent = '✅ Safe'; document.getElementById('l6-browser').className = 'metric-val ok';
+    S._endpointLogged = false;
+  }
+  updatePostureScore();
+}
+document.getElementById('btn-compromise-ws').addEventListener('click', () => {
+  S.endpointCompromised = !S.endpointCompromised;
+  updateEndpoint();
+  if (S.endpointCompromised) log('L6: Workstation compromised', 'crit');
+  else log('L6: Workstation restored', 'ok');
+});
+
+// ── L7 Patient Identity ──────────────────────────────────────────────────────
+function updatePatient() {
+  const swapped = S.patientSwapped;
+  const card = document.getElementById('l7-card');
+  const status = document.getElementById('l7-status');
+  if (swapped) {
+    card.className = 'layer-card flagged';
+    status.textContent = '⚠️ SWAPPED'; status.className = 'layer-status flagged';
+    document.getElementById('l7-patient').textContent = 'PT-9999'; document.getElementById('l7-patient').className = 'metric-val bad';
+    document.getElementById('l7-wristband').textContent = '❌ Mismatch'; document.getElementById('l7-wristband').className = 'metric-val bad';
+    document.getElementById('l7-biometric').textContent = '❌ Failed'; document.getElementById('l7-biometric').className = 'metric-val bad';
+    document.getElementById('l7-location').textContent = '⚠️ Off-bedside'; document.getElementById('l7-location').className = 'metric-val bad';
+    if (!S._patientLogged) {
+      S._patientLogged = true;
+      recordIncident({ id: 'INC-L7-'+Date.now(), timestamp: Date.now(), layer: 'Layer 7', severity: 'critical', title: 'Patient Identity Swap', detail: 'Patient ID mismatch detected' });
+      showBanner('🔄 Patient ID Swapped', 'Wrong patient record accessed');
+      log('⚠ L7: Patient ID swap', 'crit');
+      S.eventHistory.push({ time: Date.now(), layer: 'L7', event: 'swap' });
+      runCorrelationEngine();
+    }
+  } else {
+    card.className = 'layer-card';
+    status.textContent = 'NOMINAL'; status.className = 'layer-status nominal';
+    document.getElementById('l7-patient').textContent = 'PT-4821'; document.getElementById('l7-patient').className = 'metric-val ok';
+    document.getElementById('l7-wristband').textContent = '✅ Matched'; document.getElementById('l7-wristband').className = 'metric-val ok';
+    document.getElementById('l7-biometric').textContent = '✅ Verified'; document.getElementById('l7-biometric').className = 'metric-val ok';
+    document.getElementById('l7-location').textContent = '✅ Bedside'; document.getElementById('l7-location').className = 'metric-val ok';
+    S._patientLogged = false;
+  }
+  updatePostureScore();
+}
+document.getElementById('btn-swap-patient').addEventListener('click', () => {
+  S.patientSwapped = !S.patientSwapped;
+  updatePatient();
+});
+
+// ── L8 MITM ───────────────────────────────────────────────────────────────────
+function updateMITM() {
+  const active = S.mitmActive;
+  const card = document.getElementById('l8-card');
+  const status = document.getElementById('l8-status');
+  if (active) {
+    card.className = 'layer-card flagged';
+    status.textContent = '⚠️ TAMPERED'; status.className = 'layer-status flagged';
+    document.getElementById('l8-sig').textContent = '❌ Invalid'; document.getElementById('l8-sig').className = 'metric-val bad';
+    document.getElementById('l8-checksum').textContent = '❌ Corrupted'; document.getElementById('l8-checksum').className = 'metric-val bad';
+    document.getElementById('l8-ts').textContent = '⚠️ Replayed'; document.getElementById('l8-ts').className = 'metric-val bad';
+    document.getElementById('l8-pkts').textContent = '⚠️ 12 Tampered'; document.getElementById('l8-pkts').className = 'metric-val bad';
+    if (!S._mitmLogged) {
+      S._mitmLogged = true;
+      recordIncident({ id: 'INC-L8-'+Date.now(), timestamp: Date.now(), layer: 'Layer 8', severity: 'critical', title: 'MITM Attack Detected', detail: 'Data packets tampered in transit' });
+      showBanner('🌐 MITM Attack', 'Data integrity compromised');
+      log('⚠ L8: MITM attack', 'crit');
+      S.eventHistory.push({ time: Date.now(), layer: 'L8', event: 'mitm' });
+      runCorrelationEngine();
+    }
+  } else {
+    card.className = 'layer-card';
+    status.textContent = 'NOMINAL'; status.className = 'layer-status nominal';
+    document.getElementById('l8-sig').textContent = '✅ Valid'; document.getElementById('l8-sig').className = 'metric-val ok';
+    document.getElementById('l8-checksum').textContent = '✅ Match'; document.getElementById('l8-checksum').className = 'metric-val ok';
+    document.getElementById('l8-ts').textContent = '✅ Fresh'; document.getElementById('l8-ts').className = 'metric-val ok';
+    document.getElementById('l8-pkts').textContent = '✅ 847 OK'; document.getElementById('l8-pkts').className = 'metric-val ok';
+    S._mitmLogged = false;
+  }
+  updatePostureScore();
+}
+document.getElementById('btn-mitm').addEventListener('click', () => {
+  S.mitmActive = !S.mitmActive;
+  updateMITM();
+});
+
+// ── L9 Vendor ─────────────────────────────────────────────────────────────────
+function updateVendor() {
+  const comp = S.vendorCompromised;
+  const card = document.getElementById('l9-card');
+  const status = document.getElementById('l9-status');
+  if (comp) {
+    card.className = 'layer-card flagged';
+    status.textContent = '⚠️ OVER-PERM'; status.className = 'layer-status flagged';
+    document.getElementById('l9-sessions').textContent = '⚠️ 3 active'; document.getElementById('l9-sessions').className = 'metric-val bad';
+    document.getElementById('l9-expiry').textContent = '⚠️ Never'; document.getElementById('l9-expiry').className = 'metric-val bad';
+    document.getElementById('l9-perms').textContent = '⚠️ Full access'; document.getElementById('l9-perms').className = 'metric-val bad';
+    document.getElementById('l9-audit').textContent = '⚠️ Unreviewed'; document.getElementById('l9-audit').className = 'metric-val bad';
+    if (!S._vendorLogged) {
+      S._vendorLogged = true;
+      recordIncident({ id: 'INC-L9-'+Date.now(), timestamp: Date.now(), layer: 'Layer 9', severity: 'high', title: 'Vendor Access Over-Permissioned', detail: 'Vendor account with permanent full access detected' });
+      showBanner('🔓 Vendor Over-Permissioned', 'Vendor has unlimited access');
+      log('⚠ L9: Vendor over-permissioned', 'crit');
+      S.eventHistory.push({ time: Date.now(), layer: 'L9', event: 'vendor' });
+      runCorrelationEngine();
+    }
+  } else {
+    card.className = 'layer-card';
+    status.textContent = 'NOMINAL'; status.className = 'layer-status nominal';
+    document.getElementById('l9-sessions').textContent = '0 active'; document.getElementById('l9-sessions').className = 'metric-val ok';
+    document.getElementById('l9-expiry').textContent = '—'; document.getElementById('l9-expiry').className = 'metric-val ok';
+    document.getElementById('l9-perms').textContent = 'Read-only'; document.getElementById('l9-perms').className = 'metric-val ok';
+    document.getElementById('l9-audit').textContent = '✅ Clean'; document.getElementById('l9-audit').className = 'metric-val ok';
+    S._vendorLogged = false;
+  }
+  updatePostureScore();
+}
+document.getElementById('btn-vendor').addEventListener('click', () => {
+  S.vendorCompromised = !S.vendorCompromised;
+  updateVendor();
+});
+
+// ── L10 Insider ───────────────────────────────────────────────────────────────
+function updateInsider() {
+  const threat = S.insiderThreat;
+  const card = document.getElementById('l10-card');
+  const status = document.getElementById('l10-status');
+  if (threat) {
+    card.className = 'layer-card flagged';
+    status.textContent = '⚠️ SUSPICIOUS'; status.className = 'layer-status flagged';
+    document.getElementById('l10-risk').textContent = '89%'; document.getElementById('l10-risk').className = 'metric-val bad';
+    document.getElementById('l10-pattern').textContent = '⚠️ Abnormal'; document.getElementById('l10-pattern').className = 'metric-val bad';
+    document.getElementById('l10-volume').textContent = '⚠️ Exfiltration'; document.getElementById('l10-volume').className = 'metric-val bad';
+    document.getElementById('l10-peers').textContent = '3 alerts'; document.getElementById('l10-peers').className = 'metric-val bad';
+    if (!S._insiderLogged) {
+      S._insiderLogged = true;
+      recordIncident({ id: 'INC-L10-'+Date.now(), timestamp: Date.now(), layer: 'Layer 10', severity: 'critical', title: 'Insider Threat Detected', detail: 'Anomalous access pattern detected — potential data exfiltration' });
+      showBanner('👤 Insider Threat', 'Suspicious access pattern detected');
+      log('⚠ L10: Insider threat detected', 'crit');
+      S.eventHistory.push({ time: Date.now(), layer: 'L10', event: 'insider' });
+      runCorrelationEngine();
+    }
+  } else {
+    card.className = 'layer-card';
+    status.textContent = 'NOMINAL'; status.className = 'layer-status nominal';
+    document.getElementById('l10-risk').textContent = '2%'; document.getElementById('l10-risk').className = 'metric-val ok';
+    document.getElementById('l10-pattern').textContent = '✅ Normal'; document.getElementById('l10-pattern').className = 'metric-val ok';
+    document.getElementById('l10-volume').textContent = '✅ Normal'; document.getElementById('l10-volume').className = 'metric-val ok';
+    document.getElementById('l10-peers').textContent = '0'; document.getElementById('l10-peers').className = 'metric-val ok';
+    S._insiderLogged = false;
+  }
+  updatePostureScore();
+}
+document.getElementById('btn-insider').addEventListener('click', () => {
+  S.insiderThreat = !S.insiderThreat;
+  updateInsider();
+});
+
+// ── Correlation Engine ──────────────────────────────────────────────────────
+function runCorrelationEngine() {
+  const now = Date.now();
+  S.eventHistory = S.eventHistory.filter(e => now - e.time < 15000);
+  const l1 = S.eventHistory.some(e => e.layer === 'L1' && e.event === 'mismatch');
+  const l4 = S.eventHistory.some(e => e.layer === 'L4' && e.event === 'spoof');
+  const l2 = S.eventHistory.some(e => e.layer === 'L2' && e.event === 'anomaly');
+  const l5 = S.eventHistory.some(e => e.layer === 'L5' && e.event === 'mismatch');
+  const l6 = S.eventHistory.some(e => e.layer === 'L6' && e.event === 'compromise');
+  const l7 = S.eventHistory.some(e => e.layer === 'L7' && e.event === 'swap');
+  const l8 = S.eventHistory.some(e => e.layer === 'L8' && e.event === 'mitm');
+  const l9 = S.eventHistory.some(e => e.layer === 'L9' && e.event === 'vendor');
+  const l10 = S.eventHistory.some(e => e.layer === 'L10' && e.event === 'insider');
+
+  if (l1 && l4 && l2 && !S.chainDetected) {
+    S.chainDetected = true;
+    log('🧩 ATTACK CHAIN: L1→L4→L2 — AP: 94%', 'highlight');
+    showBanner('🧩 Attack Chain Detected', 'Multi-layer attack in progress');
+    recordIncident({ id: 'INC-CHAIN-'+Date.now(), timestamp: Date.now(), layer: 'Correlation Engine', severity: 'critical', title: 'Multi-Layer Attack Chain', detail: 'Sequence: L1 mismatch → L4 spoof → L2 anomaly. AP: 94%' });
+    document.getElementById('l1-card').className = 'layer-card highlight';
+    document.getElementById('l4-card').className = 'layer-card highlight';
+    document.getElementById('l2-card').className = 'layer-card highlight';
+    setTimeout(() => {
+      document.getElementById('l1-card').className = 'layer-card flagged';
+      document.getElementById('l4-card').className = 'layer-card flagged';
+      document.getElementById('l2-card').className = 'layer-card flagged';
+    }, 3000);
+    updatePostureScore();
+  }
+  if (l5 && l1 && !S.chainDetected && !S._chainLogged2) {
+    S._chainLogged2 = true;
+    log('⚠️ Pattern: L5 + L1 — AP: 72%', 'warn');
+    recordIncident({ id: 'INC-PAT-'+Date.now(), timestamp: Date.now(), layer: 'Correlation Engine', severity: 'high', title: 'Suspicious Pattern', detail: 'L5 location mismatch + L1 behavioral mismatch' });
+    setTimeout(() => { S._chainLogged2 = false; }, 10000);
+  }
+  if (l6 && l1 && !S.chainDetected) {
+    S.chainDetected = true;
+    log('🧩 ATTACK CHAIN: L6→L1 — Endpoint compromise + credential theft', 'highlight');
+    recordIncident({ id: 'INC-CHAIN2-'+Date.now(), timestamp: Date.now(), layer: 'Correlation Engine', severity: 'critical', title: 'Attack Chain: Endpoint + Credential', detail: 'Compromised workstation + stolen credentials' });
+    updatePostureScore();
+  }
+  if (l10 && l7 && l8 && !S.chainDetected) {
+    S.chainDetected = true;
+    log('🧩 ATTACK CHAIN: L10→L7→L8 — Insider exfiltration + patient swap + MITM', 'highlight');
+    recordIncident({ id: 'INC-CHAIN3-'+Date.now(), timestamp: Date.now(), layer: 'Correlation Engine', severity: 'critical', title: 'Attack Chain: Insider Threat', detail: 'Insider exfiltration + patient ID swap + MITM' });
+    updatePostureScore();
+  }
+  setTimeout(() => { S.chainDetected = false; }, 10000);
+}
+
+// ── Posture Score ────────────────────────────────────────────────────────────
+function updatePostureScore() {
+  const l1 = S.trustScore;
+  const l2 = vitalsAttack ? 20 : 100;
+  const l3 = S.l3QuarantinedDevices > 0 ? 60 : 100;
+  const l4Comp = S.devices.some(d => d.status === 'compromised');
+  const l4 = l4Comp ? 30 : 100;
+  const l5 = S.emergencyMode ? 100 : (S.locationMatch ? 100 : 30);
+  const l6 = S.endpointCompromised ? 10 : 100;
+  const l7 = S.patientSwapped ? 10 : 100;
+  const l8 = S.mitmActive ? 10 : 100;
+  const l9 = S.vendorCompromised ? 20 : 100;
+  const l10 = S.insiderThreat ? 10 : 100;
+
+  const w = { l1:0.15, l2:0.10, l3:0.08, l4:0.12, l5:0.08, l6:0.12, l7:0.10, l8:0.08, l9:0.07, l10:0.10 };
+  let score = l1*w.l1 + l2*w.l2 + l3*w.l3 + l4*w.l4 + l5*w.l5 + l6*w.l6 + l7*w.l7 + l8*w.l8 + l9*w.l9 + l10*w.l10;
+  const critical = S.incidents.filter(i => i.severity === 'critical').length;
+  if (critical > 0) score -= critical * 3;
+  score = Math.min(100, Math.max(0, Math.round(score)));
+  S.postureScore = score;
+
+  const circle = document.getElementById('postureCircle');
+  circle.textContent = score;
+  circle.className = 'posture-circle' + (score >= 80 ? '' : score >= 50 ? ' warning' : ' critical');
+  document.getElementById('postureStatus').textContent = score >= 80 ? '✅ Healthy' : score >= 50 ? '⚠️ Elevated Risk' : '🚨 Critical Risk';
+
+  const vals = { pL1:l1, pL2:l2, pL3:l3, pL4:l4, pL5:l5, pL6:l6, pL7:l7, pL8:l8, pL9:l9, pL10:l10 };
+  Object.keys(vals).forEach(k => {
+    const el = document.getElementById(k);
+    if (el) { el.textContent = vals[k] + '%'; el.className = vals[k] >= 80 ? 'ok' : vals[k] >= 50 ? 'warn' : 'bad'; }
+  });
+  document.querySelectorAll('.posture-breakdown .dot').forEach((dot, i) => {
+    const v = Object.values(vals)[i];
+    dot.className = 'dot ' + (v >= 80 ? 'green' : v >= 50 ? 'amber' : 'red');
+  });
+}
+
+// ── Run Attack Chain ─────────────────────────────────────────────────────────
+async function runAttackChain() {
+  if (S.scenarioRunning) return;
+  S.scenarioRunning = true;
+  document.getElementById('atk-chain').disabled = true;
+  log('🧩 Starting Attack Chain Simulation...', 'highlight');
+  showBanner('🧩 Attack Chain', 'Sequence simulation started');
+
+  // Reset all layers first
+  S.endpointCompromised = false; S.patientSwapped = false; S.mitmActive = false;
+  S.vendorCompromised = false; S.insiderThreat = false;
+  S.devices.forEach(d => { d.status = 'trusted'; d.score = 100; });
+  vitalsAttack = false; ecgGlitch = false; S.l3QuarantinedDevices = 0;
+  document.getElementById('l3-segs').textContent = '4/4';
+  document.getElementById('l3-quar').textContent = '0';
+  document.getElementById('l3-card').className = 'layer-card';
+  document.getElementById('l3-status').textContent = 'NOMINAL';
+  document.getElementById('l3-status').className = 'layer-status nominal';
+  renderDevices(); updateEndpoint(); updatePatient(); updateMITM(); updateVendor(); updateInsider();
+
+  await delay(800);
+
+  log('⏳ t=0s: Triggering L1 mismatch...', 'warn');
+  const robotic = Array.from({length: 15}, () => 60 + Math.random()*5);
+  S.keyTimestamps = [];
+  let t = Date.now();
+  robotic.forEach(gap => { t += gap; S.keyTimestamps.push(t); });
+  typeInput.value = 'attack_override';
+  analyzeTyping();
+  await delay(2000);
+
+  log('⏳ t=2s: Spoofing device (L4)...', 'warn');
+  const trusted = S.devices.filter(d => d.status === 'trusted');
+  if (trusted.length) { const target = trusted[0]; target.status = 'compromised'; target.score = 15; renderDevices(); }
+  document.getElementById('l3-segs').textContent = '3/4';
+  document.getElementById('l3-quar').textContent = '1';
+  document.getElementById('l3-card').className = 'layer-card flagged';
+  document.getElementById('l3-status').textContent = 'QUARANTINE';
+  document.getElementById('l3-status').className = 'layer-status flagged';
+  await delay(2000);
+
+  log('⏳ t=4s: Tampering vitals (L2)...', 'warn');
+  vitalsAttack = true; vitalsAttackType = 'spo2'; ecgGlitch = true;
+  document.getElementById('l2-card').className = 'layer-card flagged';
+  document.getElementById('l2-status').textContent = 'FLAGGED';
+  document.getElementById('l2-status').className = 'layer-status flagged';
+  await delay(2000);
+
+  log('⏳ t=6s: Compromising endpoint (L6)...', 'warn');
+  S.endpointCompromised = true;
+  updateEndpoint();
+  await delay(2000);
+
+  log('⏳ t=8s: Swapping patient (L7)...', 'warn');
+  S.patientSwapped = true;
+  updatePatient();
+  await delay(2000);
+
+  log('⏳ t=10s: MITM attack (L8)...', 'warn');
+  S.mitmActive = true;
+  updateMITM();
+  await delay(2000);
+
+  log('⏳ t=12s: Vendor over-permission (L9)...', 'warn');
+  S.vendorCompromised = true;
+  updateVendor();
+  await delay(2000);
+
+  log('⏳ t=14s: Insider threat (L10)...', 'warn');
+  S.insiderThreat = true;
+  updateInsider();
+  await delay(2000);
+
+  log('⏳ t=16s: Correlation Engine analyzing...', 'highlight');
+  S.eventHistory = [
+    { time: Date.now()-15000, layer: 'L1', event: 'mismatch' },
+    { time: Date.now()-13000, layer: 'L4', event: 'spoof' },
+    { time: Date.now()-11000, layer: 'L2', event: 'anomaly' },
+    { time: Date.now()-9000, layer: 'L6', event: 'compromise' },
+    { time: Date.now()-7000, layer: 'L7', event: 'swap' },
+    { time: Date.now()-5000, layer: 'L8', event: 'mitm' },
+    { time: Date.now()-3000, layer: 'L9', event: 'vendor' },
+    { time: Date.now()-1000, layer: 'L10', event: 'insider' },
+  ];
+  runCorrelationEngine();
+  await delay(2000);
+
+  showBanner('🧩 Attack Chain Complete', 'All 10 layers responded – attack neutralized');
+  log('✅ Attack chain simulation complete. System integrity maintained.', 'ok');
+  S.scenarioRunning = false;
+  document.getElementById('atk-chain').disabled = false;
+}
+
+function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ── Scenario Runner ──────────────────────────────────────────────────────────
+function disableAttackBtns(on) {
+  document.querySelectorAll('.attack-btn').forEach(b => b.disabled = on);
+}
+async function runScenario(type) {
+  if (S.scenarioRunning) return;
+  S.scenarioRunning = true;
+  disableAttackBtns(true);
+  switch(type) {
+    case 'credential':
+      if (!S.baselineIntervals) { log('Set baseline first', 'warn'); break; }
+      const robotic = Array.from({length: 15}, () => 60 + Math.random()*5);
+      S.keyTimestamps = [];
+      let t = Date.now();
+      robotic.forEach(gap => { t += gap; S.keyTimestamps.push(t); });
+      typeInput.value = 'admin_override';
+      analyzeTyping();
+      log('🔑 Credential theft scenario', 'crit');
+      break;
+    case 'vitals':
+      vitalsAttack = true; vitalsAttackType = 'spo2'; ecgGlitch = true;
+      document.getElementById('l2-card').className = 'layer-card flagged';
+      document.getElementById('l2-status').textContent = 'FLAGGED';
+      document.getElementById('l2-status').className = 'layer-status flagged';
+      recordIncident({ id: 'INC-L2-'+Date.now(), timestamp: Date.now(), layer: 'Layer 2', severity: 'critical', title: 'Tampered Vitals', detail: 'SpO₂ reading 71% injected' });
+      showBanner('💉 Tampered Vitals', 'SpO₂ reading 71% blocked');
+      log('💉 Tampered vitals scenario', 'crit');
+      setTimeout(() => {
+        vitalsAttack = false; ecgGlitch = false;
+        document.getElementById('l2-card').className = 'layer-card';
+        document.getElementById('l2-status').textContent = 'NOMINAL';
+        document.getElementById('l2-status').className = 'layer-status nominal';
+        updatePostureScore();
+      }, 5000);
+      break;
+    case 'lateral':
+      document.getElementById('nn-workstation').className = 'net-node compromised';
+      document.getElementById('nl-1').textContent = '🚫';
+      document.getElementById('nl-1').className = 'net-link blocked';
+      document.getElementById('l3-card').className = 'layer-card flagged';
+      document.getElementById('l3-status').textContent = 'QUARANTINE';
+      document.getElementById('l3-status').className = 'layer-status flagged';
+      S.l3BlockedPackets += 847;
+      document.getElementById('l3-pkts').textContent = S.l3BlockedPackets;
+      recordIncident({ id: 'INC-L3-'+Date.now(), timestamp: Date.now(), layer: 'Layer 3', severity: 'critical', title: 'Lateral Movement', detail: '847 packets blocked' });
+      showBanner('🦠 Lateral Movement', '847 packets blocked');
+      log('🦠 Lateral movement scenario', 'crit');
+      setTimeout(() => {
+        document.getElementById('nn-workstation').className = 'net-node active';
+        document.getElementById('nl-1').textContent = '→';
+        document.getElementById('nl-1').className = 'net-link';
+        document.getElementById('l3-card').className = 'layer-card';
+        document.getElementById('l3-status').textContent = 'NOMINAL';
+        document.getElementById('l3-status').className = 'layer-status nominal';
+        updatePostureScore();
+      }, 5000);
+      break;
+    case 'spoof': spoofRandomDevice(); break;
+    case 'location': document.getElementById('location-select').value = 'Cafeteria'; updateProximity(); break;
+    case 'endpoint': S.endpointCompromised = !S.endpointCompromised; updateEndpoint(); break;
+    case 'patient': S.patientSwapped = !S.patientSwapped; updatePatient(); break;
+    case 'mitm': S.mitmActive = !S.mitmActive; updateMITM(); break;
+    case 'vendor': S.vendorCompromised = !S.vendorCompromised; updateVendor(); break;
+    case 'insider': S.insiderThreat = !S.insiderThreat; updateInsider(); break;
+  }
+  S.scenarioRunning = false;
+  disableAttackBtns(false);
+}
+
+// ── Reset ──────────────────────────────────────────────────────────────────────
+function resetConsole() {
+  S.trustScore = 100;
+  S.l3BlockedPackets = 0; S.l3QuarantinedDevices = 0;
+  S.endpointCompromised = false; S.patientSwapped = false; S.mitmActive = false;
+  S.vendorCompromised = false; S.insiderThreat = false;
+  S.emergencyMode = false; S.badgeLocation = 'Ward 3B';
+  S.eventHistory = []; S.chainDetected = false;
+  S._mfaActive = false;
+  vitalsAttack = false; ecgGlitch = false;
+  document.getElementById('l1-card').className = 'layer-card';
+  document.getElementById('l1-status').textContent = 'NOMINAL';
+  document.getElementById('l1-status').className = 'layer-status nominal';
+  document.getElementById('l1-bar').style.width = '100%';
+  document.getElementById('l1-bar').style.background = 'var(--green)';
+  document.getElementById('l1-trust').textContent = '100%';
+  document.getElementById('l1-match').textContent = '—';
+  document.getElementById('l1-match').className = 'metric-val';
+  typeInput.className = 'type-area';
+  document.getElementById('l2-card').className = 'layer-card';
+  document.getElementById('l2-status').textContent = 'NOMINAL';
+  document.getElementById('l2-status').className = 'layer-status nominal';
+  document.getElementById('l3-card').className = 'layer-card';
+  document.getElementById('l3-status').textContent = 'NOMINAL';
+  document.getElementById('l3-status').className = 'layer-status nominal';
+  document.getElementById('l3-segs').textContent = '4/4';
+  document.getElementById('l3-quar').textContent = '0';
+  document.getElementById('l3-pkts').textContent = '0';
+  document.getElementById('nn-workstation').className = 'net-node active';
+  document.getElementById('nl-1').textContent = '→';
+  document.getElementById('nl-1').className = 'net-link';
+  renderDevices();
+  updateEndpoint(); updatePatient(); updateMITM(); updateVendor(); updateInsider();
+  document.getElementById('location-select').value = 'Ward 3B';
+  updateProximity();
+  document.getElementById('incident-banner').style.display = 'none';
+  document.getElementById('status-pill').textContent = '● ALL SYSTEMS NOMINAL';
+  document.getElementById('status-pill').className = 'nominal';
+  document.getElementById('btn-emergency').textContent = '🚨 EM (OFF)';
+  document.getElementById('btn-emergency').className = 'l1-btn emergency';
+  hideMFA();
+  updatePostureScore();
+  log('↺ Console reset', 'ok');
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+renderDevices(); updateProximity(); updateEndpoint(); updatePatient(); updateMITM(); updateVendor(); updateInsider(); updatePostureScore();
+log('🚀 IoMT Sentinel 10‑Layer v2.1 (OTP fixed) initialised', 'ok');
+log(`👤 Active user: ${NURSES.find(n=>n.id===S.currentUser)?.name} (${NURSES.find(n=>n.id===S.currentUser)?.shift} shift)`, 'ok');
+log('L1 Behavioral Biometrics • L2 Clinical Validation • L3 Network Segmentation', 'ok');
+log('L4 Device Handshake • L5 Proximity Fingerprint • L6 Endpoint Integrity', 'ok');
+log('L7 Patient Identity • L8 Data‑in‑Transit • L9 Vendor Access • L10 Insider Threat', 'ok');
+log('🧠 Correlation Engine: active • 📊 Posture Score: active', 'ok');
+</script>
+</body>
+</html>
